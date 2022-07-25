@@ -39,6 +39,7 @@ fn main() {
         .iter()
         .map(|(idx, color)| (color.clone(), *idx))
         .collect();
+
     let pixel_to_id: PixelToId =
         input
             .grid
@@ -62,13 +63,6 @@ fn main() {
         pixel_to_id: pixel_to_id.clone(),
     }
     .build();
-
-    for (k, v) in id_to_color {
-        println!("{:?} -> {:?}", k, v);
-    }
-    for (k, v) in adjacency_rules {
-        println!("{:?} -> {:?}", k, v);
-    }
 
     image::output_image(input.width, input.height, &input.get_bytes());
 }
