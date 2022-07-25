@@ -1,12 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use pixel::Pixel;
+use wave_function::WaveFunction;
+use wave_info::WaveInfo;
 
-use adjacency_builder::AdjacencyRulesBuilder;
-use color::Color;
-use grid::Grid;
-use id::Id;
-use types::{ColorToId, IdToColor, PixelToId};
-
-mod adjacency_builder;
+mod adjacency_rules;
 mod color;
 mod color_type;
 mod direction;
@@ -15,54 +11,42 @@ mod helpers;
 mod id;
 mod image;
 mod pixel;
-mod types;
-
-fn mk_color_map(grid: &Grid) -> IdToColor {
-    let mut color_set: HashSet<Color> = HashSet::new();
-    let mut color_map: IdToColor = HashMap::new();
-    let mut color_idx = 0;
-    grid.for_each(|(_, color)| {
-        if !color_set.contains(color) {
-            color_set.insert(color.clone());
-            color_map.insert(Id(color_idx), color.clone());
-            color_idx += 1;
-        }
-    });
-    color_map
-}
+mod wave_function;
+mod wave_info;
 
 fn main() {
+    let output_width = 10;
+    let output_height = 10;
+
     let input = image::Image::from_png("simple_input.png");
 
-    let id_to_color = mk_color_map(&input.grid);
-    let color_to_id: ColorToId = id_to_color
-        .iter()
-        .map(|(idx, color)| (color.clone(), *idx))
-        .collect();
+    let wave_function_info = WaveInfo::init(&input.grid);
 
-    let pixel_to_id: PixelToId =
-        input
-            .grid
-            .pixels()
-            .iter()
-            .fold(HashMap::new(), |mut acc, &pixel| {
-                let idx = input
-                    .grid
-                    .get(pixel)
-                    .map(|color| color_to_id.get(color))
-                    .flatten()
-                    .unwrap();
+    let adjacency_rules =
+        adjacency_rules::init(input.width, input.height, &&wave_function_info.pixel_to_id);
 
-                acc.insert(pixel, *idx);
-                acc
-            });
+    let mut wave_function = WaveFunction::init(
+        output_width,
+        output_height,
+        &adjacency_rules,
+        &wave_function_info,
+    );
 
-    let adjacency_rules = AdjacencyRulesBuilder {
-        image_height: input.height,
-        image_width: input.width,
-        pixel_to_id: pixel_to_id.clone(),
+    let state = wave_function.collapse();
+
+    let mut output_bytes = Vec::new();
+    for w in 0..output_width {
+        for h in 0..output_height {
+            let pixel = Pixel { x: w, y: h };
+            let color = &state
+                .get(&pixel)
+                .map(|id| wave_function_info.id_to_color.get(id))
+                .flatten()
+                .unwrap()
+                .0;
+            output_bytes.append(&mut color.clone())
+        }
     }
-    .build();
 
-    image::output_image(input.width, input.height, &input.get_bytes());
+    image::output_image(output_width, output_height, &output_bytes.as_slice());
 }

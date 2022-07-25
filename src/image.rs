@@ -46,17 +46,17 @@ impl Image {
         }
     }
 
-    pub fn get_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        for w in 0..self.width {
-            for h in 0..self.height {
-                let pixel = Pixel { x: w, y: h };
-                let mut color = self.grid.get(pixel).unwrap().0.clone();
-                bytes.append(&mut color);
-            }
-        }
-        bytes
-    }
+    // pub fn get_bytes(&self) -> Vec<u8> {
+    //     let mut bytes = Vec::new();
+    //     for w in 0..self.width {
+    //         for h in 0..self.height {
+    //             let pixel = Pixel { x: w, y: h };
+    //             let mut color = self.grid.get(pixel).unwrap().0.clone();
+    //             bytes.append(&mut color);
+    //         }
+    //     }
+    //     bytes
+    // }
 }
 
 fn read_image(path: &str) -> (OutputInfo, Vec<u8>) {
