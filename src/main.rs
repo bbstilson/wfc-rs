@@ -1,22 +1,19 @@
-use pixel::Pixel;
+use data::pixel::Pixel;
+use model::Model;
 use wave_function::WaveFunction;
-use wave_info::WaveInfo;
 
 mod adjacency_rules;
-mod color;
-mod color_type;
-mod direction;
-mod grid;
+mod data;
 mod helpers;
-mod id;
 mod image;
-mod pixel;
+mod model;
 mod wave_function;
-mod wave_info;
 
 fn main() {
     let output_width = 50;
     let output_height = 10;
+    let n = 3;
+    let take_snapshots = false;
 
     // let input_img = format!("input/simple_input.png");
     // let input_img = format!("input/knot.png");
@@ -25,16 +22,16 @@ fn main() {
     // let input_img = format!("input/test2.png");
     let input = image::Image::from_png(&input_img);
 
-    let wave_function_info = WaveInfo::init(&input.grid);
+    let model = Model::init(&input.pixels);
 
-    let adjacency_rules =
-        adjacency_rules::init(input.width, input.height, &&wave_function_info.pixel_to_id);
+    let adjacency_rules = adjacency_rules::init(input.width, input.height, &&model.pixel_to_id);
 
     let mut wave_function = WaveFunction::init(
+        take_snapshots,
         output_width,
         output_height,
         &adjacency_rules,
-        &wave_function_info,
+        &model,
     );
 
     let state = wave_function.run();
@@ -45,7 +42,7 @@ fn main() {
         for x in 0..output_width {
             let pixel = Pixel { x, y };
             let id = state[&pixel];
-            let color = &wave_function_info.id_to_color[&id];
+            let color = &model.id_to_color[&id];
             data.append(&mut color.0.clone());
         }
     }

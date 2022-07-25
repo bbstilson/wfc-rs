@@ -1,62 +1,45 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 
 use png::OutputInfo;
 
-use crate::color::Color;
-use crate::color_type;
-use crate::grid::Grid;
-use crate::helpers;
-use crate::pixel::Pixel;
+use crate::data::{color::Color, pixel::Pixel};
 
 pub struct Image {
     pub width: i32,
     pub height: i32,
-    pub color_type: color_type::ColorType,
-    pub grid: Grid,
+    pub pixels: HashMap<Pixel, Color>,
 }
 
 impl Image {
     pub fn from_png(path: &str) -> Image {
         let (info, buf) = read_image(path);
-        let color_type = match info.color_type {
-            png::ColorType::Rgb => color_type::ColorType::RGB,
-            png::ColorType::Rgba => color_type::ColorType::RGBA,
-            _ => panic!("unsupported color type"),
+        let bytes_per_color = match info.color_type {
+            png::ColorType::Rgb => 3,
+            png::ColorType::Rgba => 4,
+            _ => panic!("Unsupported color type"),
         };
 
-        // build grid
-        let bytes_per_color = color_type.bytes_per_color();
         let bytes = buf[..info.buffer_size()].to_vec();
-        let mut grid = Grid::new();
-        for y in 0..(info.height as i32) {
-            for x in 0..(info.width as i32) {
-                let idx = helpers::get_position(x, y, info.width as i32, bytes_per_color) as usize;
+        let mut pixels = HashMap::new();
+        let width = info.width as i32;
+        let height = info.height as i32;
+        for y in 0..height {
+            for x in 0..width {
+                let idx = get_position(x, y, width, bytes_per_color) as usize;
                 let color = &bytes[idx..(idx + 3)].to_owned();
-                grid.insert(Pixel { x, y }, Color(color.clone()));
+                pixels.insert(Pixel { x, y }, Color(color.clone()));
             }
         }
 
         Image {
-            width: info.width as i32,
-            height: info.height as i32,
-            color_type: color_type,
-            grid: grid,
+            pixels,
+            width,
+            height,
         }
     }
-
-    // pub fn get_bytes(&self) -> Vec<u8> {
-    //     let mut bytes = Vec::new();
-    //     for w in 0..self.width {
-    //         for h in 0..self.height {
-    //             let pixel = Pixel { x: w, y: h };
-    //             let mut color = self.grid.get(pixel).unwrap().0.clone();
-    //             bytes.append(&mut color);
-    //         }
-    //     }
-    //     bytes
-    // }
 }
 
 fn read_image(path: &str) -> (OutputInfo, Vec<u8>) {
@@ -80,4 +63,8 @@ pub fn output_image(width: i32, height: i32, name: &str, data: &[u8]) {
     let mut writer = encoder.write_header().unwrap();
 
     writer.write_image_data(&data).unwrap();
+}
+
+fn get_position(pos_x: i32, pos_y: i32, width: i32, bytes_per_color: i32) -> i32 {
+    (pos_y * width + pos_x) * bytes_per_color
 }

@@ -1,25 +1,8 @@
 use std::collections::HashMap;
 
-use crate::{direction::Direction, helpers, id::Id, pixel::Pixel};
+use crate::data::{direction::Direction, id::Id, pixel::Pixel};
+use crate::helpers;
 
-/*
-
-    {
-    L -> {
-        S -> {
-            Direction::UP -> 3
-            Direction::DOWN -> 2
-            LEFT -> 1
-            RIGHT -> 0
-        },
-        L -> {
-            Direction::UP -> 3
-            Direction::DOWN -> 3
-            LEFT -> 3
-            RIGHT -> 3
-        }
-    }
-}*/
 /// A type that represents how frequently, and in which direction, colors appear
 /// next to other colors.
 pub type AdjacencyRules = HashMap<Id, HashMap<Id, HashMap<Direction, i32>>>;
@@ -74,7 +57,7 @@ pub fn init(
 mod test {
     use std::collections::HashMap;
 
-    use crate::{direction::Direction, id::Id, pixel::Pixel};
+    use crate::{data::direction::Direction, data::id::Id, data::pixel::Pixel};
 
     use super::init;
 

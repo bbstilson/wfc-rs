@@ -2,10 +2,8 @@ use std::collections::HashMap;
 
 use rand::{self, distributions::WeightedIndex, prelude::Distribution};
 
-use crate::{
-    adjacency_rules::AdjacencyRules, color::Color, direction::Direction, helpers, id::Id, image,
-    pixel::Pixel, wave_info::WaveInfo,
-};
+use crate::data::{color::Color, direction::Direction, id::Id, pixel::Pixel};
+use crate::{adjacency_rules::AdjacencyRules, helpers, image, model::Model};
 
 #[derive(Debug)]
 struct CellState {
@@ -35,22 +33,24 @@ type State = HashMap<Pixel, CellState>;
 type CollapsedState = HashMap<Pixel, Id>;
 pub struct WaveFunction<'a> {
     state: State,
-    info: &'a WaveInfo,
+    model: &'a Model,
     adjacency_rules: &'a AdjacencyRules,
     width: i32,
     height: i32,
     cells_to_collapse: i32,
+    take_snapshots: bool,
 }
 
 impl<'b> WaveFunction<'b> {
     pub fn init<'a>(
+        take_snapshots: bool,
         width: i32,
         height: i32,
         adjacency_rules: &'a AdjacencyRules,
-        info: &'a WaveInfo,
+        model: &'a Model,
     ) -> WaveFunction<'a> {
         let mut init = HashMap::new();
-        let choices = info.id_to_color.keys().map(|id| *id).collect::<Vec<Id>>();
+        let choices = model.id_to_color.keys().map(|id| *id).collect::<Vec<Id>>();
         for y in 0..height {
             for x in 0..width {
                 init.insert(
@@ -63,11 +63,12 @@ impl<'b> WaveFunction<'b> {
             }
         }
         WaveFunction {
-            state: init,
-            info,
+            take_snapshots,
+            model,
             adjacency_rules,
             width,
             height,
+            state: init,
             cells_to_collapse: width * height,
         }
     }
@@ -81,7 +82,9 @@ impl<'b> WaveFunction<'b> {
     }
 
     fn iterate(&mut self, depth: i32) -> CollapsedState {
-        self.snapshot(depth);
+        if self.take_snapshots {
+            self.snapshot(depth);
+        }
 
         let to_collapse = self.get_lowest_entropy_pixel();
         self.collapse(to_collapse);
@@ -158,7 +161,7 @@ impl<'b> WaveFunction<'b> {
         let mut rng = rand::thread_rng();
         let weights = choices
             .iter()
-            .flat_map(|id| self.info.id_frequency.get(id))
+            .flat_map(|id| self.model.id_frequency.get(id))
             .collect::<Vec<&f64>>();
         let dist = WeightedIndex::new(weights).unwrap();
         choices[dist.sample(&mut rng)]
@@ -187,14 +190,14 @@ impl<'b> WaveFunction<'b> {
                 let cell_state = self.state.get(&pixel).unwrap();
                 let color = cell_state
                     .state
-                    .map(|id| self.info.id_to_color.get(&id))
+                    .map(|id| self.model.id_to_color.get(&id))
                     .flatten()
                     .map(|c| Color(c.0.clone()))
                     .unwrap_or_else(|| {
                         let bytes = cell_state
                             .choices
                             .iter()
-                            .map(|id| self.info.id_to_color.get(id))
+                            .map(|id| self.model.id_to_color.get(id))
                             .flatten()
                             .map(|c| Color(c.0.clone()))
                             .reduce(|acc, color| acc.blend(color))

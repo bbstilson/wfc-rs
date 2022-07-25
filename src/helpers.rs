@@ -1,8 +1,4 @@
-use crate::{direction::Direction, pixel::Pixel};
-
-pub fn get_position(pos_x: i32, pos_y: i32, width: i32, bytes_per_color: i32) -> i32 {
-    (pos_y * width + pos_x) * bytes_per_color
-}
+use crate::data::{direction::Direction, pixel::Pixel};
 
 pub fn get_neighbors(
     image_width: i32,
@@ -29,7 +25,7 @@ pub fn get_neighbors(
 
 #[cfg(test)]
 mod test {
-    use crate::{direction::Direction, pixel::Pixel};
+    use crate::{data::direction::Direction, data::pixel::Pixel};
 
     use super::get_neighbors;
 
