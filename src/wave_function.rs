@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use rand::{self, distributions::WeightedIndex, prelude::Distribution};
 
-use crate::data::{cell_state::CellState, coord_2d::Coord2d, id::Id};
-use crate::{adjacency_rules::AdjacencyRules, helpers, model::Model};
+use crate::data::{cell_state::CellState, coord_2d::Coord2d, id::Id, tile::Tile};
+use crate::{adjacency_rules::AdjacencyRules, helpers, image, model::Model};
 
 type State = HashMap<Coord2d, CellState>;
 type CollapsedState = HashMap<Coord2d, Id>;
@@ -12,24 +12,33 @@ pub struct WaveFunction {
     state: State,
     model: Model,
     adjacency_rules: AdjacencyRules,
-    grid_width: i32,
-    grid_height: i32,
-    cells_to_collapse: i32,
+    grid_width: usize,
+    grid_height: usize,
+    cells_to_collapse: usize,
+    tile_size: usize,
+    take_snapshots: bool,
+    id_to_tile: HashMap<Id, Tile>,
 }
 
 impl WaveFunction {
     pub fn new(
-        grid_width: i32,
-        grid_height: i32,
+        grid_width: usize,
+        grid_height: usize,
         adjacency_rules: AdjacencyRules,
         model: Model,
+        take_snapshots: bool,
+        tile_size: usize,
+        id_to_tile: HashMap<Id, Tile>,
     ) -> WaveFunction {
         let mut init = HashMap::new();
         let choices = model.id_to_tile.keys().map(|id| *id).collect::<Vec<Id>>();
         for y in 0..grid_height {
             for x in 0..grid_width {
                 init.insert(
-                    Coord2d { x, y },
+                    Coord2d {
+                        x: x as i32,
+                        y: y as i32,
+                    },
                     CellState {
                         choices: choices.clone(),
                         state: None,
@@ -42,6 +51,9 @@ impl WaveFunction {
             adjacency_rules,
             grid_width,
             grid_height,
+            take_snapshots,
+            tile_size,
+            id_to_tile,
             state: init,
             cells_to_collapse: grid_width * grid_height,
         }
@@ -52,17 +64,20 @@ impl WaveFunction {
     }
 
     pub fn run(&mut self) -> CollapsedState {
-        self.iterate()
+        self.iterate(0)
     }
 
-    fn iterate(&mut self) -> CollapsedState {
+    fn iterate(&mut self, depth: usize) -> CollapsedState {
+        if self.take_snapshots {
+            self.take_snapshot(depth);
+        }
+
         let to_collapse = self.get_lowest_entropy_coord();
         self.collapse(to_collapse);
         self.propagate(to_collapse);
 
         while !self.is_collapsed() {
-            // println!("~~~~~~~~~~~");
-            self.iterate();
+            self.iterate(depth + 1);
         }
 
         self.state
@@ -109,10 +124,6 @@ impl WaveFunction {
                             let neighbor_choices = neighbor_cell_state.get_choices();
 
                             let mut add_neighbor = false;
-                            // println!("~~~~ {:?}", coord);
-                            // println!("~~~~ {:?}", neighbor);
-                            // println!("~~~~ {:?}", choices);
-                            // println!("~~~~ {:?}", neighbor_choices);
                             for neighbor_choice in &neighbor_choices {
                                 let is_valid = choices.iter().any(|choice| {
                                     self.adjacency_rules.valid_neighbors(
@@ -123,15 +134,10 @@ impl WaveFunction {
                                 });
 
                                 if !is_valid {
-                                    // println!(
-                                    //     "{:?}\tcannot be a\t{:?}\tneighbor of\t{:?}",
-                                    //     neighbor_choice, direction, choices
-                                    // );
                                     neighbor_cell_state.remove_choice(neighbor_choice);
                                     add_neighbor = true;
                                 }
                             }
-                            // println!("~~ {:?}", neighbor_cell_state);
                             if add_neighbor {
                                 stack.push(*neighbor);
                             }
@@ -164,5 +170,42 @@ impl WaveFunction {
 
         let (coord, _) = choices.first().unwrap();
         *coord
+    }
+
+    fn take_snapshot(&self, depth: usize) {
+        let mut data = vec![
+            vec![128; self.grid_width * 3 * self.tile_size];
+            self.grid_height * self.tile_size
+        ];
+
+        for g_y in 0..self.grid_height {
+            for g_x in 0..self.grid_width {
+                let pixel = Coord2d {
+                    x: g_x as i32,
+                    y: g_y as i32,
+                };
+                let state = &self.state[&pixel];
+                let tile = state
+                    .get_choices()
+                    .iter()
+                    .map(|id| &self.id_to_tile[id])
+                    .map(|t| t.clone())
+                    .reduce(|l, r| l.blend(r))
+                    .unwrap();
+
+                for n_y in 0..self.tile_size {
+                    for n_x in 0..self.tile_size {
+                        let color = &tile.pixels[n_y][n_x];
+                        let f_x = (g_x * self.tile_size * 3) + (n_x * 3);
+                        let f_y = (g_y * self.tile_size) + n_y;
+                        data[f_y][f_x] = color.0[0];
+                        data[f_y][f_x + 1] = color.0[1];
+                        data[f_y][f_x + 2] = color.0[2];
+                    }
+                }
+            }
+        }
+
+        image::output_image(&depth.to_string(), data);
     }
 }

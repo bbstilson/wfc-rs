@@ -1,5 +1,7 @@
+use std::collections::HashMap;
+
 use adjacency_rules::AdjacencyRules;
-use data::coord_2d::Coord2d;
+use data::{coord_2d::Coord2d, id::Id, tile::Tile};
 use model::Model;
 use wave_function::WaveFunction;
 
@@ -19,19 +21,26 @@ fn main() {
     let grid_width = 30;
     let grid_height = 15;
     let tile_size = 3;
+    let take_snapshots = true;
 
-    // let input_img = "input/simple_input.png";
     let input_img = "input/island.png";
     // let input_img = "input/test.png";
     // let input_img = "input/knot.png";
-    // let input_img = "input/house.png";
     let input = image::Image::from_png(input_img);
 
     let model = Model::new(tile_size, &input);
-    let id_to_tile = model.id_to_tile.clone();
+    let id_to_tile: HashMap<Id, Tile> = model.id_to_tile.clone();
     let adjacency_rules = AdjacencyRules::from_model(&model);
 
-    let mut wave_function = WaveFunction::new(grid_width, grid_height, adjacency_rules, model);
+    let mut wave_function = WaveFunction::new(
+        grid_width,
+        grid_height,
+        adjacency_rules,
+        model,
+        take_snapshots,
+        tile_size,
+        id_to_tile.clone(),
+    );
 
     let state = wave_function.run();
 

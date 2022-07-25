@@ -61,21 +61,21 @@ impl Tile {
         a_edge.eq(&b_edge)
     }
 
-    //     pub fn blend(&self, other: Tile) -> Tile {
-    //         Tile {
-    //             pixels: self
-    //                 .pixels
-    //                 .iter()
-    //                 .zip(other.pixels.iter())
-    //                 .map(|(v1, v2)| {
-    //                     v1.iter()
-    //                         .zip(v2.iter())
-    //                         .map(|(c1, c2)| c1.blend(c2))
-    //                         .collect()
-    //                 })
-    //                 .collect(),
-    //         }
-    //     }
+    pub fn blend(&self, other: Tile) -> Tile {
+        Tile {
+            pixels: self
+                .pixels
+                .iter()
+                .zip(other.pixels.iter())
+                .map(|(v1, v2)| {
+                    v1.iter()
+                        .zip(v2.iter())
+                        .map(|(c1, c2)| c1.blend(c2))
+                        .collect()
+                })
+                .collect(),
+        }
+    }
 }
 
 #[cfg(test)]

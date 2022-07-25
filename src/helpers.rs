@@ -1,8 +1,8 @@
 use crate::data::{coord_2d::Coord2d, direction::Direction};
 
 pub fn get_neighbors(
-    grid_width: i32,
-    grid_height: i32,
+    grid_width: usize,
+    grid_height: usize,
     coord: &Coord2d,
 ) -> Vec<(Coord2d, Direction)> {
     let x = coord.x;
@@ -18,7 +18,7 @@ pub fn get_neighbors(
         // ((x + 1, y + 1), Direction::DownRight),
     ]
     .iter()
-    .filter(|((x, y), _)| x >= &0 && y >= &0 && x < &grid_width && y < &grid_height)
+    .filter(|((x, y), _)| x >= &0 && y >= &0 && x < &(grid_width as i32) && y < &(grid_height as i32))
     .map(|((x, y), direction)| (Coord2d { x: *x, y: *y }, *direction))
     .collect()
 }
