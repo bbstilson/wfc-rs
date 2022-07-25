@@ -11,12 +11,11 @@ pub struct Model {
     pub id_to_tile: HashMap<Id, Tile>,
     pub tile_to_id: HashMap<Tile, Id>,
     pub frequency_hints: HashMap<Id, f64>,
-    pub tile_grid: Vec<Vec<Id>>,
 }
 
 impl Model {
     pub fn new(tile_size: usize, image: &Image) -> Model {
-        let (tile_to_freq, tile_grid) = mk_tiles(tile_size, image);
+        let tile_to_freq = mk_tiles(tile_size, image);
         let tile_to_id: HashMap<Tile, Id> = tile_to_freq
             .keys()
             .enumerate()
@@ -28,28 +27,20 @@ impl Model {
 
         let frequency_hints: HashMap<Id, f64> = mk_frequency_hints(&id_to_tile, &tile_to_id);
 
-        let tile_grid: Vec<Vec<Id>> = tile_grid
-            .iter()
-            .map(|row| row.iter().map(|tile| tile_to_id[tile]).collect())
-            .collect();
-
         Model {
             id_to_tile,
             tile_to_id,
             frequency_hints,
-            tile_grid,
         }
     }
 }
 
 // Given an image and a tile size (n), construct and return the tiles
 // paired with their frequency of occurance in the input image.
-fn mk_tiles(tile_size: usize, image: &Image) -> (HashMap<Tile, i32>, Vec<Vec<Tile>>) {
+fn mk_tiles(tile_size: usize, image: &Image) -> HashMap<Tile, i32> {
     let mut tile_to_freq: HashMap<Tile, i32> = HashMap::new();
-    let mut tile_grid = vec![];
 
     for y in 0..image.height as usize {
-        let mut tile_row = vec![];
         for x in 0..image.width as usize {
             let mut pixels = vec![];
             for y_t in y..(y + tile_size) {
@@ -66,12 +57,10 @@ fn mk_tiles(tile_size: usize, image: &Image) -> (HashMap<Tile, i32>, Vec<Vec<Til
             }
             let tile = Tile { pixels };
             let freq = tile_to_freq.get(&tile).map(|f| f + 1).unwrap_or(1);
-            tile_row.push(tile.clone());
             tile_to_freq.insert(tile, freq);
         }
-        tile_grid.push(tile_row);
     }
-    (tile_to_freq, tile_grid)
+    tile_to_freq
 }
 
 fn mk_frequency_hints(
