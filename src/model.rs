@@ -1,66 +1,93 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-use crate::data::{color::Color, id::Id, pixel::Pixel};
+use crate::{
+    data::{coord_2d::Coord2d, id::Id, tile::Tile},
+    image::Image,
+};
 
 // Model hold all data relevant to constructing and resolving the wave.
 #[derive(Clone, Debug)]
 pub struct Model {
-    pub id_to_color: HashMap<Id, Color>,
-    pub color_to_id: HashMap<Color, Id>,
-    pub pixel_to_id: HashMap<Pixel, Id>,
-    pub id_frequency: HashMap<Id, f64>,
+    pub id_to_tile: HashMap<Id, Tile>,
+    pub tile_to_id: HashMap<Tile, Id>,
+    pub frequency_hints: HashMap<Id, f64>,
+    pub tile_grid: Vec<Vec<Id>>,
 }
 
 impl Model {
-    pub fn init(pixels: &HashMap<Pixel, Color>) -> Model {
-        let id_to_color = mk_id_to_color(pixels);
-        let color_to_id: HashMap<Color, Id> = id_to_color
-            .iter()
-            .map(|(idx, color)| (color.clone(), *idx))
+    pub fn new(tile_size: usize, image: &Image) -> Model {
+        let (tile_to_freq, tile_grid) = mk_tiles(tile_size, image);
+        let tile_to_id: HashMap<Tile, Id> = tile_to_freq
+            .keys()
+            .enumerate()
+            .map(|(id, tile)| (tile.clone(), id))
             .collect();
 
-        let pixel_to_id = pixels.iter().fold(HashMap::new(), |mut acc, (pixel, _)| {
-            let idx = pixels
-                .get(&pixel)
-                .map(|color| color_to_id.get(color))
-                .flatten()
-                .unwrap();
+        let id_to_tile: HashMap<Id, Tile> =
+            tile_to_id.iter().map(|(k, v)| (*v, k.clone())).collect();
 
-            acc.insert(*pixel, *idx);
-            acc
-        });
+        let frequency_hints: HashMap<Id, f64> = mk_frequency_hints(&id_to_tile, &tile_to_id);
 
-        let total_ids = *(&id_to_color.keys().len()) as f64;
-        let id_frequency: HashMap<Id, f64> = color_to_id
+        let tile_grid: Vec<Vec<Id>> = tile_grid
             .iter()
-            .fold(HashMap::new(), |mut freqs: HashMap<Id, i32>, (_, id)| {
-                let next_frequency = freqs.get(id).map(|f| f + 1).unwrap_or(1);
-                freqs.insert(*id, next_frequency);
-                freqs
-            })
-            .iter()
-            .map(|(id, freq)| (*id, *freq as f64 / total_ids))
+            .map(|row| row.iter().map(|tile| tile_to_id[tile]).collect())
             .collect();
 
         Model {
-            id_to_color,
-            color_to_id,
-            pixel_to_id,
-            id_frequency,
+            id_to_tile,
+            tile_to_id,
+            frequency_hints,
+            tile_grid,
         }
     }
 }
 
-fn mk_id_to_color(grid: &HashMap<Pixel, Color>) -> HashMap<Id, Color> {
-    let mut color_set: HashSet<Color> = HashSet::new();
-    let mut id_to_color: HashMap<Id, Color> = HashMap::new();
-    let mut color_idx = 0;
-    grid.iter().for_each(|(_, color)| {
-        if !color_set.contains(color) {
-            color_set.insert(color.clone());
-            id_to_color.insert(Id(color_idx), color.clone());
-            color_idx += 1;
+// Given an image and a tile size (n), construct and return the tiles
+// paired with their frequency of occurance in the input image.
+fn mk_tiles(tile_size: usize, image: &Image) -> (HashMap<Tile, i32>, Vec<Vec<Tile>>) {
+    let mut tile_to_freq: HashMap<Tile, i32> = HashMap::new();
+    let mut tile_grid = vec![];
+
+    for y in 0..image.height as usize {
+        let mut tile_row = vec![];
+        for x in 0..image.width as usize {
+            let mut pixels = vec![];
+            for y_t in y..(y + tile_size) {
+                let mut pixel_row = vec![];
+                for x_t in x..(x + tile_size) {
+                    let pixel = Coord2d {
+                        x: (x_t as i32) % image.width,
+                        y: (y_t as i32) % image.height,
+                    };
+                    let color = &image.pixels[&pixel];
+                    pixel_row.push(color.clone());
+                }
+                pixels.push(pixel_row);
+            }
+            let tile = Tile { pixels };
+            let freq = tile_to_freq.get(&tile).map(|f| f + 1).unwrap_or(1);
+            tile_row.push(tile.clone());
+            tile_to_freq.insert(tile, freq);
         }
-    });
-    id_to_color
+        tile_grid.push(tile_row);
+    }
+    (tile_to_freq, tile_grid)
+}
+
+fn mk_frequency_hints(
+    id_to_tile: &HashMap<Id, Tile>,
+    tile_to_id: &HashMap<Tile, Id>,
+) -> HashMap<Id, f64> {
+    let total_ids = *(&id_to_tile.keys().len()) as f64;
+
+    tile_to_id
+        .iter()
+        .fold(HashMap::new(), |mut freqs: HashMap<Id, i32>, (_, id)| {
+            let next_frequency = freqs.get(id).map(|f| f + 1).unwrap_or(1);
+            freqs.insert(*id, next_frequency);
+            freqs
+        })
+        .iter()
+        .map(|(id, freq)| (*id, *freq as f64 / total_ids))
+        .collect()
 }

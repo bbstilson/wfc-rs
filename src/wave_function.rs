@@ -2,59 +2,34 @@ use std::collections::HashMap;
 
 use rand::{self, distributions::WeightedIndex, prelude::Distribution};
 
-use crate::data::{color::Color, direction::Direction, id::Id, pixel::Pixel};
-use crate::{adjacency_rules::AdjacencyRules, helpers, image, model::Model};
+use crate::data::{cell_state::CellState, coord_2d::Coord2d, id::Id};
+use crate::{adjacency_rules::AdjacencyRules, helpers, model::Model};
 
-#[derive(Debug)]
-struct CellState {
-    choices: Vec<Id>,
-    state: Option<Id>,
-}
+type State = HashMap<Coord2d, CellState>;
+type CollapsedState = HashMap<Coord2d, Id>;
 
-impl CellState {
-    pub fn is_collapsed(&self) -> bool {
-        self.state.is_some()
-    }
-
-    pub fn get_choices(&self) -> Vec<Id> {
-        self.state
-            .map(|id| vec![id])
-            .unwrap_or(self.choices.clone())
-    }
-
-    pub fn remove_choice(&mut self, choice: &Id) {
-        if let Some(idx) = self.choices.iter().position(|id| id == choice) {
-            self.choices.remove(idx);
-        }
-    }
-}
-
-type State = HashMap<Pixel, CellState>;
-type CollapsedState = HashMap<Pixel, Id>;
-pub struct WaveFunction<'a> {
+pub struct WaveFunction {
     state: State,
-    model: &'a Model,
-    adjacency_rules: &'a AdjacencyRules,
-    width: i32,
-    height: i32,
+    model: Model,
+    adjacency_rules: AdjacencyRules,
+    grid_width: i32,
+    grid_height: i32,
     cells_to_collapse: i32,
-    take_snapshots: bool,
 }
 
-impl<'b> WaveFunction<'b> {
-    pub fn init<'a>(
-        take_snapshots: bool,
-        width: i32,
-        height: i32,
-        adjacency_rules: &'a AdjacencyRules,
-        model: &'a Model,
-    ) -> WaveFunction<'a> {
+impl WaveFunction {
+    pub fn new(
+        grid_width: i32,
+        grid_height: i32,
+        adjacency_rules: AdjacencyRules,
+        model: Model,
+    ) -> WaveFunction {
         let mut init = HashMap::new();
-        let choices = model.id_to_color.keys().map(|id| *id).collect::<Vec<Id>>();
-        for y in 0..height {
-            for x in 0..width {
+        let choices = model.id_to_tile.keys().map(|id| *id).collect::<Vec<Id>>();
+        for y in 0..grid_height {
+            for x in 0..grid_width {
                 init.insert(
-                    Pixel { x, y },
+                    Coord2d { x, y },
                     CellState {
                         choices: choices.clone(),
                         state: None,
@@ -63,13 +38,12 @@ impl<'b> WaveFunction<'b> {
             }
         }
         WaveFunction {
-            take_snapshots,
             model,
             adjacency_rules,
-            width,
-            height,
+            grid_width,
+            grid_height,
             state: init,
-            cells_to_collapse: width * height,
+            cells_to_collapse: grid_width * grid_height,
         }
     }
 
@@ -78,32 +52,29 @@ impl<'b> WaveFunction<'b> {
     }
 
     pub fn run(&mut self) -> CollapsedState {
-        self.iterate(0)
+        self.iterate()
     }
 
-    fn iterate(&mut self, depth: i32) -> CollapsedState {
-        if self.take_snapshots {
-            self.snapshot(depth);
-        }
-
-        let to_collapse = self.get_lowest_entropy_pixel();
+    fn iterate(&mut self) -> CollapsedState {
+        let to_collapse = self.get_lowest_entropy_coord();
         self.collapse(to_collapse);
-        self.propagate_from(to_collapse);
+        self.propagate(to_collapse);
 
-        if self.is_collapsed() {
-            self.state
-                .iter()
-                .fold(HashMap::new(), |mut acc, (pixel, cell_state)| {
-                    acc.insert(*pixel, cell_state.state.unwrap());
-                    acc
-                })
-        } else {
-            self.iterate(depth + 1)
+        while !self.is_collapsed() {
+            // println!("~~~~~~~~~~~");
+            self.iterate();
         }
+
+        self.state
+            .iter()
+            .fold(HashMap::new(), |mut acc, (coord, cell_state)| {
+                acc.insert(*coord, cell_state.state.unwrap());
+                acc
+            })
     }
 
-    fn collapse(&mut self, to_collapse: Pixel) {
-        let choices = &self.state.get(&to_collapse).unwrap().choices;
+    fn collapse(&mut self, to_collapse: Coord2d) {
+        let choices = &self.state.get(&to_collapse).unwrap().get_choices();
         let choice = self.get_random_choice(choices);
 
         self.cells_to_collapse -= 1;
@@ -116,107 +87,82 @@ impl<'b> WaveFunction<'b> {
         );
     }
 
-    fn propagate_from(&mut self, collapsed: Pixel) {
-        let mut stack: Vec<Pixel> = vec![collapsed];
+    fn propagate(&mut self, collapsed: Coord2d) {
+        let mut stack: Vec<Coord2d> = vec![collapsed];
         while !stack.is_empty() {
-            if let Some(cell) = stack.pop() {
-                if let Some(cell_state) = self.state.get(&cell) {
-                    let cur_possible_tiles = cell_state.get_choices();
+            if let Some(coord) = stack.pop() {
+                if let Some(cell_state) = self.state.get(&coord) {
+                    let neighbors =
+                        helpers::get_neighbors(self.grid_width, self.grid_height, &coord);
 
-                    let neighbors = helpers::get_neighbors(self.width, self.height, &cell);
+                    let choices = cell_state.get_choices();
 
-                    for (neighbor, direction) in neighbors {
-                        self.state
-                            .get(&neighbor)
-                            .map(|cs| cs.get_choices())
-                            .unwrap_or(vec![])
-                            .iter()
-                            .for_each(|neighbor_id| {
-                                let other_tile_possible = cur_possible_tiles
-                                    .iter()
-                                    .any(|id| self.valid_pair(id, &neighbor_id, &direction));
+                    // For each neighbor, check if the cell we just collapsed affects
+                    // the choices in that neighbor.
+                    // Specifically, if the neighbor has any choices that still might
+                    // work, then it's still fine.
+                    // If so, remove that choice, then add the neighbor to the stack.
+                    neighbors.iter().for_each(|(neighbor, direction)| {
+                        let maybe_neighbor_state =
+                            self.state.get_mut(neighbor).filter(|cs| !cs.is_collapsed());
+                        if let Some(neighbor_cell_state) = maybe_neighbor_state {
+                            let neighbor_choices = neighbor_cell_state.get_choices();
 
-                                if !other_tile_possible {
-                                    if let Some(cell_state) = self.state.get_mut(&neighbor) {
-                                        cell_state.remove_choice(neighbor_id);
-                                    };
-                                    stack.push(neighbor);
+                            let mut add_neighbor = false;
+                            // println!("~~~~ {:?}", coord);
+                            // println!("~~~~ {:?}", neighbor);
+                            // println!("~~~~ {:?}", choices);
+                            // println!("~~~~ {:?}", neighbor_choices);
+                            for neighbor_choice in &neighbor_choices {
+                                let is_valid = choices.iter().any(|choice| {
+                                    self.adjacency_rules.valid_neighbors(
+                                        choice,
+                                        &neighbor_choice,
+                                        direction,
+                                    )
+                                });
+
+                                if !is_valid {
+                                    // println!(
+                                    //     "{:?}\tcannot be a\t{:?}\tneighbor of\t{:?}",
+                                    //     neighbor_choice, direction, choices
+                                    // );
+                                    neighbor_cell_state.remove_choice(neighbor_choice);
+                                    add_neighbor = true;
                                 }
-                            });
-                    }
+                            }
+                            // println!("~~ {:?}", neighbor_cell_state);
+                            if add_neighbor {
+                                stack.push(*neighbor);
+                            }
+                        }
+                    });
                 }
             }
         }
-    }
-
-    fn valid_pair(&self, id: &Id, neighbor: &Id, direction: &Direction) -> bool {
-        self.adjacency_rules
-            .get(id)
-            .and_then(|rules| rules.get(neighbor))
-            .and_then(|dir_to_freq| dir_to_freq.get(direction))
-            .is_some()
     }
 
     fn get_random_choice(&self, choices: &Vec<Id>) -> Id {
         let mut rng = rand::thread_rng();
         let weights = choices
             .iter()
-            .flat_map(|id| self.model.id_frequency.get(id))
+            .flat_map(|id| self.model.frequency_hints.get(id))
             .collect::<Vec<&f64>>();
         let dist = WeightedIndex::new(weights).unwrap();
         choices[dist.sample(&mut rng)]
     }
 
-    fn get_lowest_entropy_pixel(&self) -> Pixel {
+    fn get_lowest_entropy_coord(&self) -> Coord2d {
         let mut choices = self
             .state
             .iter()
             .filter(|(_, cell_state)| !cell_state.is_collapsed())
-            .map(|(pixel, cell_state)| (*pixel, cell_state.choices.len()))
-            .collect::<Vec<(Pixel, usize)>>();
+            .map(|(coord, cell_state)| (*coord, cell_state.get_choices().len()))
+            .collect::<Vec<(Coord2d, usize)>>();
 
         choices.sort_by(|(_, choices_a), (_, choices_b)| choices_a.cmp(choices_b));
 
-        let (pixel, _) = choices.first().unwrap();
-        *pixel
-    }
-
-    fn snapshot(&self, depth: i32) {
-        let mut output_bytes = Vec::new();
-
-        for h in 0..self.height {
-            for w in 0..self.width {
-                let pixel = Pixel { x: w, y: h };
-                let cell_state = self.state.get(&pixel).unwrap();
-                let color = cell_state
-                    .state
-                    .map(|id| self.model.id_to_color.get(&id))
-                    .flatten()
-                    .map(|c| Color(c.0.clone()))
-                    .unwrap_or_else(|| {
-                        let bytes = cell_state
-                            .choices
-                            .iter()
-                            .map(|id| self.model.id_to_color.get(id))
-                            .flatten()
-                            .map(|c| Color(c.0.clone()))
-                            .reduce(|acc, color| acc.blend(color))
-                            .unwrap()
-                            .0
-                            .clone();
-
-                        Color(bytes)
-                    });
-
-                output_bytes.append(&mut color.0.clone())
-            }
-        }
-
-        image::output_image(
-            self.width,
-            self.height,
-            &depth.to_string(),
-            &output_bytes.as_slice(),
-        );
+        let (coord, _) = choices.first().unwrap();
+        *coord
     }
 }

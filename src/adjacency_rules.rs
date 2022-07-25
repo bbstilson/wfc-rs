@@ -1,164 +1,97 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use crate::data::{direction::Direction, id::Id, pixel::Pixel};
-use crate::helpers;
+use crate::data::{direction::Direction, id::Id, tile::Tile};
+use crate::model::Model;
 
-/// A type that represents how frequently, and in which direction, colors appear
-/// next to other colors.
-pub type AdjacencyRules = HashMap<Id, HashMap<Id, HashMap<Direction, i32>>>;
+type Rules = HashMap<Id, HashMap<Id, HashSet<Direction>>>;
 
-pub fn init(
-    image_width: i32,
-    image_height: i32,
-    pixel_to_id: &HashMap<Pixel, Id>,
-) -> AdjacencyRules {
-    pixel_to_id.iter().fold(
-        HashMap::new(),
-        |mut adjacency_rules: AdjacencyRules, (pixel, id)| {
-            let neighbors = helpers::get_neighbors(image_width, image_height, pixel);
+//  Representation of the adjacency and direction between tile ids.
+pub struct AdjacencyRules {
+    rules: Rules,
+}
 
-            for (neighbor, direction) in neighbors {
-                let neighbor_id = pixel_to_id[&neighbor];
-                match adjacency_rules.get_mut(id) {
-                    Some(rules) => {
-                        match rules.get_mut(&neighbor_id) {
-                            // this neighbor pixel was already found next to this pixel id
-                            Some(direction_frequency) => {
-                                let next_frequency = direction_frequency
-                                    .get(&direction)
-                                    .map(|frequency| frequency + 1)
-                                    .unwrap_or(1);
+impl AdjacencyRules {
+    pub fn new() -> AdjacencyRules {
+        AdjacencyRules {
+            rules: HashMap::new(),
+        }
+    }
 
-                                direction_frequency.insert(direction, next_frequency);
-                            }
-                            // this neighbor pixel has never been adjacent to this
-                            // pixel id, but there might be other rules.
-                            None => {
-                                rules.insert(neighbor_id, HashMap::from([(direction, 1)]));
-                            }
-                        }
-                    }
-                    // we've never seen this id before.
-                    None => {
-                        adjacency_rules.insert(
-                            *id,
-                            HashMap::from([(neighbor_id, HashMap::from([(direction, 1)]))]),
+    pub fn from_model(model: &Model) -> AdjacencyRules {
+        let mut adjacency_rules = AdjacencyRules::new();
+        let tiles: Vec<&Tile> = model.tile_to_id.keys().collect();
+
+        tiles.iter().for_each(|a| {
+            tiles.iter().for_each(|b| {
+                for direction in Direction::all() {
+                    if a.overlaps(b, &direction) {
+                        adjacency_rules.allow(
+                            model.tile_to_id[&a],
+                            model.tile_to_id[&b],
+                            direction,
                         );
                     }
-                };
-            }
+                }
+            });
+        });
 
-            adjacency_rules
-        },
-    )
+        adjacency_rules
+    }
+
+    pub fn allow(&mut self, a: Id, b: Id, direction: Direction) {
+        if let Some(rules) = self.rules.get_mut(&a) {
+            if let Some(neighbors) = rules.get_mut(&b) {
+                neighbors.insert(direction);
+            } else {
+                rules.insert(b, HashSet::from([direction]));
+            }
+        } else {
+            self.rules
+                .insert(a, HashMap::from([(b, HashSet::from([direction]))]));
+        }
+    }
+
+    pub fn valid_neighbors(&self, me: &Id, neighbor: &Id, direction: &Direction) -> bool {
+        let maybe_dir = self.rules.get(me).and_then(|rules| rules.get(neighbor));
+        if let Some(directions) = maybe_dir {
+            directions.contains(direction)
+        } else {
+            false
+        }
+    }
 }
 
 #[cfg(test)]
-mod test {
-    use std::collections::HashMap;
+mod tests {
+    use std::collections::{HashMap, HashSet};
 
-    use crate::{data::direction::Direction, data::id::Id, data::pixel::Pixel};
+    use crate::data::direction::Direction;
 
-    use super::init;
+    use super::AdjacencyRules;
 
     #[test]
-    fn test_init() {
-        let expected = HashMap::from([
-            (
-                Id(0), // sand is next to...
-                HashMap::from([
-                    (
-                        Id(0), // sand
-                        HashMap::from([
-                            (Direction::Right, 1),
-                            (Direction::DownRight, 1),
-                            (Direction::Left, 1),
-                            (Direction::UpLeft, 1),
-                        ]),
-                    ),
-                    (
-                        Id(1), // sea
-                        HashMap::from([
-                            (Direction::Up, 3),
-                            (Direction::Right, 1),
-                            (Direction::UpRight, 2),
-                            (Direction::UpLeft, 1),
-                        ]),
-                    ),
-                    (
-                        Id(2), // land
-                        HashMap::from([
-                            (Direction::Down, 2),
-                            (Direction::Left, 1),
-                            (Direction::DownRight, 1),
-                            (Direction::DownLeft, 1),
-                        ]),
-                    ),
-                ]),
-            ),
-            (
-                Id(1), // sea is next to:
-                HashMap::from([
-                    // land
-                    (Id(2), HashMap::from([(Direction::DownLeft, 1)])),
-                    // sea
-                    (
-                        Id(1),
-                        HashMap::from([
-                            (Direction::Left, 2),
-                            (Direction::Down, 1),
-                            (Direction::Up, 1),
-                            (Direction::DownRight, 1),
-                            (Direction::Right, 2),
-                            (Direction::UpLeft, 1),
-                        ]),
-                    ),
-                    // sand
-                    (
-                        Id(0),
-                        HashMap::from([
-                            (Direction::Left, 1),
-                            (Direction::Down, 3),
-                            (Direction::DownRight, 1),
-                            (Direction::DownLeft, 2),
-                        ]),
-                    ),
-                ]),
-            ),
-            (
-                Id(2), // land is next to:
-                HashMap::from([
-                    (
-                        Id(0), // sand
-                        HashMap::from([
-                            (Direction::Right, 1),
-                            (Direction::Up, 2),
-                            (Direction::UpLeft, 1),
-                            (Direction::UpRight, 1),
-                        ]),
-                    ),
-                    (
-                        Id(2), // land
-                        HashMap::from([(Direction::Left, 1), (Direction::Right, 1)]),
-                    ),
-                    // sea
-                    (Id(1), HashMap::from([(Direction::UpRight, 1)])),
-                ]),
-            ),
-        ]);
+    fn test_valid_neighbors() {
+        let adjacency_rules = AdjacencyRules {
+            rules: HashMap::from([(0, HashMap::from([(1, HashSet::from([Direction::Up]))]))]),
+        };
 
-        let pixel_to_id = HashMap::from([
-            (Pixel { x: 0, y: 0 }, Id(1)),
-            (Pixel { x: 1, y: 0 }, Id(1)),
-            (Pixel { x: 2, y: 0 }, Id(1)),
-            (Pixel { x: 0, y: 1 }, Id(0)),
-            (Pixel { x: 1, y: 1 }, Id(0)),
-            (Pixel { x: 2, y: 1 }, Id(1)),
-            (Pixel { x: 0, y: 2 }, Id(2)),
-            (Pixel { x: 1, y: 2 }, Id(2)),
-            (Pixel { x: 2, y: 2 }, Id(0)),
-        ]);
-        let adjacency_rules = init(3, 3, &pixel_to_id);
-        assert_eq!(adjacency_rules, expected)
+        assert!(adjacency_rules.valid_neighbors(&0, &1, &Direction::Up));
+        assert!(!adjacency_rules.valid_neighbors(&0, &0, &Direction::Up));
+        assert!(!adjacency_rules.valid_neighbors(&0, &1, &Direction::Down));
+    }
+
+    #[test]
+    fn test_allow() {
+        let mut rules = AdjacencyRules::new();
+        let a = 0;
+        let b = 1;
+
+        rules.allow(a, b, Direction::Up);
+        rules.allow(a, b, Direction::Up);
+        rules.allow(a, b, Direction::Down);
+        rules.allow(a, b, Direction::Down);
+
+        assert!(rules.rules[&a][&b].contains(&Direction::Up));
+        assert!(rules.rules[&a][&b].contains(&Direction::Down));
     }
 }

@@ -5,12 +5,12 @@ use std::path::Path;
 
 use png::OutputInfo;
 
-use crate::data::{color::Color, pixel::Pixel};
+use crate::data::{color::Color, coord_2d::Coord2d};
 
 pub struct Image {
     pub width: i32,
     pub height: i32,
-    pub pixels: HashMap<Pixel, Color>,
+    pub pixels: HashMap<Coord2d, Color>,
 }
 
 impl Image {
@@ -30,7 +30,7 @@ impl Image {
             for x in 0..width {
                 let idx = get_position(x, y, width, bytes_per_color) as usize;
                 let color = &bytes[idx..(idx + 3)].to_owned();
-                pixels.insert(Pixel { x, y }, Color(color.clone()));
+                pixels.insert(Coord2d { x, y }, Color(color.clone()));
             }
         }
 
@@ -52,17 +52,24 @@ fn read_image(path: &str) -> (OutputInfo, Vec<u8>) {
     (info, buf)
 }
 
-pub fn output_image(width: i32, height: i32, name: &str, data: &[u8]) {
+pub fn output_image(name: &str, grid: Vec<Vec<u8>>) {
     let file_name = format!("output/{}.png", name);
     let path = Path::new(&file_name);
     let file = File::create(path).unwrap();
     let ref mut w = BufWriter::new(file);
 
-    let mut encoder = png::Encoder::new(w, width as u32, height as u32);
+    let width = grid[0].len() as u32 / 3; // divide by bytes per pixel (rgb)
+    let height = grid.len() as u32;
+
+    let mut encoder = png::Encoder::new(w, width, height);
     encoder.set_color(png::ColorType::Rgb);
     let mut writer = encoder.write_header().unwrap();
 
-    writer.write_image_data(&data).unwrap();
+    let mut buf: Vec<u8> = vec![];
+    for mut row in grid {
+        buf.append(&mut row);
+    }
+    writer.write_image_data(&buf.as_slice()).unwrap();
 }
 
 fn get_position(pos_x: i32, pos_y: i32, width: i32, bytes_per_color: i32) -> i32 {
