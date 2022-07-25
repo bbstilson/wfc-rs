@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::{color::Color, grid::Grid, id::Id, pixel::Pixel};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WaveInfo {
     pub id_to_color: HashMap<Id, Color>,
     pub color_to_id: HashMap<Color, Id>,
@@ -23,7 +23,7 @@ impl WaveInfo {
             .iter()
             .fold(HashMap::new(), |mut acc, &pixel| {
                 let idx = grid
-                    .get(pixel)
+                    .get(&pixel)
                     .map(|color| color_to_id.get(color))
                     .flatten()
                     .unwrap();

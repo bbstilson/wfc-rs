@@ -15,10 +15,15 @@ mod wave_function;
 mod wave_info;
 
 fn main() {
-    let output_width = 10;
+    let output_width = 50;
     let output_height = 10;
 
-    let input = image::Image::from_png("simple_input.png");
+    // let input_img = format!("input/simple_input.png");
+    // let input_img = format!("input/knot.png");
+    // let input_img = format!("input/island.png");
+    let input_img = format!("input/test.png");
+    // let input_img = format!("input/test2.png");
+    let input = image::Image::from_png(&input_img);
 
     let wave_function_info = WaveInfo::init(&input.grid);
 
@@ -32,21 +37,18 @@ fn main() {
         &wave_function_info,
     );
 
-    let state = wave_function.collapse();
+    let state = wave_function.run();
 
-    let mut output_bytes = Vec::new();
-    for w in 0..output_width {
-        for h in 0..output_height {
-            let pixel = Pixel { x: w, y: h };
-            let color = &state
-                .get(&pixel)
-                .map(|id| wave_function_info.id_to_color.get(id))
-                .flatten()
-                .unwrap()
-                .0;
-            output_bytes.append(&mut color.clone())
+    let mut data: Vec<u8> = vec![];
+
+    for y in 0..output_height {
+        for x in 0..output_width {
+            let pixel = Pixel { x, y };
+            let id = state[&pixel];
+            let color = &wave_function_info.id_to_color[&id];
+            data.append(&mut color.0.clone());
         }
     }
 
-    image::output_image(output_width, output_height, &output_bytes.as_slice());
+    image::output_image(output_width, output_height, "final", &data)
 }

@@ -7,14 +7,14 @@ use crate::{direction::Direction, helpers, id::Id, pixel::Pixel};
     {
     L -> {
         S -> {
-            UP -> 3
-            DOWN -> 2
+            Direction::UP -> 3
+            Direction::DOWN -> 2
             LEFT -> 1
             RIGHT -> 0
         },
         L -> {
-            UP -> 3
-            DOWN -> 3
+            Direction::UP -> 3
+            Direction::DOWN -> 3
             LEFT -> 3
             RIGHT -> 3
         }
@@ -68,4 +68,114 @@ pub fn init(
             adjacency_rules
         },
     )
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashMap;
+
+    use crate::{direction::Direction, id::Id, pixel::Pixel};
+
+    use super::init;
+
+    #[test]
+    fn test_init() {
+        let expected = HashMap::from([
+            (
+                Id(0), // sand is next to...
+                HashMap::from([
+                    (
+                        Id(0), // sand
+                        HashMap::from([
+                            (Direction::Right, 1),
+                            (Direction::DownRight, 1),
+                            (Direction::Left, 1),
+                            (Direction::UpLeft, 1),
+                        ]),
+                    ),
+                    (
+                        Id(1), // sea
+                        HashMap::from([
+                            (Direction::Up, 3),
+                            (Direction::Right, 1),
+                            (Direction::UpRight, 2),
+                            (Direction::UpLeft, 1),
+                        ]),
+                    ),
+                    (
+                        Id(2), // land
+                        HashMap::from([
+                            (Direction::Down, 2),
+                            (Direction::Left, 1),
+                            (Direction::DownRight, 1),
+                            (Direction::DownLeft, 1),
+                        ]),
+                    ),
+                ]),
+            ),
+            (
+                Id(1), // sea is next to:
+                HashMap::from([
+                    // land
+                    (Id(2), HashMap::from([(Direction::DownLeft, 1)])),
+                    // sea
+                    (
+                        Id(1),
+                        HashMap::from([
+                            (Direction::Left, 2),
+                            (Direction::Down, 1),
+                            (Direction::Up, 1),
+                            (Direction::DownRight, 1),
+                            (Direction::Right, 2),
+                            (Direction::UpLeft, 1),
+                        ]),
+                    ),
+                    // sand
+                    (
+                        Id(0),
+                        HashMap::from([
+                            (Direction::Left, 1),
+                            (Direction::Down, 3),
+                            (Direction::DownRight, 1),
+                            (Direction::DownLeft, 2),
+                        ]),
+                    ),
+                ]),
+            ),
+            (
+                Id(2), // land is next to:
+                HashMap::from([
+                    (
+                        Id(0), // sand
+                        HashMap::from([
+                            (Direction::Right, 1),
+                            (Direction::Up, 2),
+                            (Direction::UpLeft, 1),
+                            (Direction::UpRight, 1),
+                        ]),
+                    ),
+                    (
+                        Id(2), // land
+                        HashMap::from([(Direction::Left, 1), (Direction::Right, 1)]),
+                    ),
+                    // sea
+                    (Id(1), HashMap::from([(Direction::UpRight, 1)])),
+                ]),
+            ),
+        ]);
+
+        let pixel_to_id = HashMap::from([
+            (Pixel { x: 0, y: 0 }, Id(1)),
+            (Pixel { x: 1, y: 0 }, Id(1)),
+            (Pixel { x: 2, y: 0 }, Id(1)),
+            (Pixel { x: 0, y: 1 }, Id(0)),
+            (Pixel { x: 1, y: 1 }, Id(0)),
+            (Pixel { x: 2, y: 1 }, Id(1)),
+            (Pixel { x: 0, y: 2 }, Id(2)),
+            (Pixel { x: 1, y: 2 }, Id(2)),
+            (Pixel { x: 2, y: 2 }, Id(0)),
+        ]);
+        let adjacency_rules = init(3, 3, &pixel_to_id);
+        assert_eq!(adjacency_rules, expected)
+    }
 }

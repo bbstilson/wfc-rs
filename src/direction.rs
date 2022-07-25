@@ -1,18 +1,26 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Direction {
-    UP,
-    DOWN,
-    LEFT,
-    RIGHT,
+    Left,
+    Right,
+    Up,
+    UpLeft,
+    UpRight,
+    Down,
+    DownLeft,
+    DownRight,
 }
 
-impl Direction {
-    pub fn flip(&self) -> Direction {
-        match self {
-            Direction::UP => Direction::DOWN,
-            Direction::DOWN => Direction::UP,
-            Direction::LEFT => Direction::RIGHT,
-            Direction::RIGHT => Direction::LEFT,
-        }
-    }
-}
+// impl Direction {
+// pub fn flip(&self) -> Direction {
+//     match self {
+//         Direction::Up => Direction::Down,
+//         Direction::Down => Direction::Up,
+//         Direction::Left => Direction::Right,
+//         Direction::Right => Direction::Left,
+//         Direction::DownLeft => Direction::UpRight,
+//         Direction::DownRight => Direction::UpLeft,
+//         Direction::UpLeft => Direction::DownRight,
+//         Direction::UpRight => Direction::DownLeft,
+//     }
+// }
+// }

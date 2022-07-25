@@ -17,8 +17,8 @@ impl Grid {
         self.grid.insert(k, v);
     }
 
-    pub fn get(&self, k: Pixel) -> Option<&Color> {
-        self.grid.get(&k)
+    pub fn get(&self, k: &Pixel) -> Option<&Color> {
+        self.grid.get(k)
     }
 
     pub fn for_each<F>(&self, f: F)

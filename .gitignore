@@ -1,1 +1,5 @@
 /target
+/output
+animated.gif
+.metals
+.vscode
