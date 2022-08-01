@@ -11,7 +11,13 @@ Original Algorithm: <https://github.com/mxgmn/WaveFunctionCollapse>
 ## Running
 
 ```bash
-cargo run --release
+cargo run --release -- --input ./input/island.png
+```
+
+For more info:
+
+```bash
+cargo run --release -- --help
 ```
 
 ```bash

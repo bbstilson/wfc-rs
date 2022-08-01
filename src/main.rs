@@ -34,7 +34,7 @@ struct WFCArgs {
 
     /// whether or not to take snapshot images
     #[argh(switch)]
-    take_snapshots: bool,
+    snapshots: bool,
 
     /// whether or not create all variations (rotations and reflections) of tiles
     #[argh(switch)]
@@ -58,7 +58,7 @@ fn main() {
         args.output_height,
         adjacency_rules,
         model,
-        args.take_snapshots,
+        args.snapshots,
         args.tile_size,
         id_to_tile.clone(),
     );
