@@ -16,11 +16,15 @@ mod wave_function;
 #[derive(FromArgs, Debug)]
 /// Run wfc-rs
 struct WFCArgs {
-    /// output width in number of tiles
+    /// input image
+    #[argh(option)]
+    input: String,
+
+    /// output width in tiles
     #[argh(option, default = "30")]
     output_width: usize,
 
-    /// output height in number of tiles
+    /// output height in tiles
     #[argh(option, default = "15")]
     output_height: usize,
 
@@ -32,21 +36,20 @@ struct WFCArgs {
     #[argh(switch)]
     take_snapshots: bool,
 
-    /// input image
-    #[argh(option)]
-    input: String,
+    /// whether or not create all variations (rotations and reflections) of tiles
+    #[argh(switch)]
+    with_tile_variations: bool,
 }
 
 // TODO:
-// 1) overlap or tiled
-// 2) snapshots for gif
-// 3) reflections and rotations of tiles
+// - overlap or tiled
+// - reflections and rotations of tiles
 
 fn main() {
     let args: WFCArgs = argh::from_env();
 
     let input = image::Image::from_png(&args.input);
-    let model = Model::new(args.tile_size, &input);
+    let model = Model::new(args.tile_size, args.with_tile_variations, &input);
     let id_to_tile: HashMap<Id, Tile> = model.id_to_tile.clone();
     let adjacency_rules = AdjacencyRules::from_model(&model);
 

@@ -14,8 +14,8 @@ pub struct Model {
 }
 
 impl Model {
-    pub fn new(tile_size: usize, image: &Image) -> Model {
-        let tile_to_freq = mk_tiles(tile_size, image);
+    pub fn new(tile_size: usize, with_tile_variations: bool, image: &Image) -> Model {
+        let tile_to_freq = mk_tiles(tile_size, image, with_tile_variations);
         let tile_to_id: HashMap<Tile, Id> = tile_to_freq
             .keys()
             .enumerate()
@@ -35,9 +35,9 @@ impl Model {
     }
 }
 
-// Given an image and a tile size (n), construct and return the tiles
+// Given an image and a tile size, construct and return the tiles
 // paired with their frequency of occurance in the input image.
-fn mk_tiles(tile_size: usize, image: &Image) -> HashMap<Tile, i32> {
+fn mk_tiles(tile_size: usize, image: &Image, with_tile_variations: bool) -> HashMap<Tile, i32> {
     let mut tile_to_freq: HashMap<Tile, i32> = HashMap::new();
 
     for y in 0..image.height as usize {
@@ -55,9 +55,10 @@ fn mk_tiles(tile_size: usize, image: &Image) -> HashMap<Tile, i32> {
                 }
                 pixels.push(pixel_row);
             }
-            let tile = Tile { pixels };
-            let freq = tile_to_freq.get(&tile).map(|f| f + 1).unwrap_or(1);
-            tile_to_freq.insert(tile, freq);
+            for tile in mk_versions(Tile { pixels }, with_tile_variations) {
+                let freq = tile_to_freq.get(&tile).map(|f| f + 1).unwrap_or(1);
+                tile_to_freq.insert(tile, freq);
+            }
         }
     }
     tile_to_freq
@@ -79,4 +80,40 @@ fn mk_frequency_hints(
         .iter()
         .map(|(id, freq)| (*id, *freq as f64 / total_ids))
         .collect()
+}
+
+fn mk_versions(tile: Tile, with_tile_variations: bool) -> Vec<Tile> {
+    let mut tiles = vec![];
+    tiles.push(tile);
+
+    if with_tile_variations {
+        unimplemented!()
+        // TODO: conditionally make all the rotations
+        // if symmetry.contains(S2_IDENTITY) {
+        //     symm_bufs.push(buf.clone())
+        // }
+        // if symmetry.contains(S2_ROTATE_90) {
+        //     symm_bufs.push(rotate90(&buf))
+        // }
+        // if symmetry.contains(S2_ROTATE_180) {
+        //     symm_bufs.push(rotate180(&buf))
+        // }
+        // if symmetry.contains(S2_ROTATE_270) {
+        //     symm_bufs.push(rotate270(&buf))
+        // }
+        // if symmetry.contains(S2_REFLECT_Y) {
+        //     symm_bufs.push(flip_horizontal(&buf))
+        // }
+        // if symmetry.contains(S2_REFLECT_X) {
+        //     symm_bufs.push(flip_vertical(&buf))
+        // }
+        // if symmetry.contains(S2_REFLECT_X_ROT90) {
+        //     symm_bufs.push(flip_vertical(&rotate90(&buf)))
+        // }
+        // if symmetry.contains(S2_REFLECT_Y_ROT90) {
+        //     symm_bufs.push(flip_horizontal(&rotate90(&buf)))
+        // }
+    }
+
+    tiles
 }
