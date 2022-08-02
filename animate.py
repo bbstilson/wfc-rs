@@ -9,7 +9,7 @@ OUTPUT_DIR = "output"
 
 
 def by_file_id(file: str) -> int:
-    file_name = pathlib.Path(file).name.split(".")[0].split("_")[0]
+    file_name = file.split("/")[1].split("_")[0]
     return int(file_name) if "final" not in file_name else sys.maxsize
 
 
@@ -38,7 +38,7 @@ def main() -> None:
         format="GIF",
         append_images=frames,
         save_all=True,
-        duration=16,
+        duration=5,
     )
 
 

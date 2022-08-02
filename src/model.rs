@@ -1,21 +1,26 @@
 use std::collections::HashMap;
 
 use crate::{
-    data::{coord_2d::Coord2d, id::Id, tile::Tile},
+    data::{coord_2d::Vector2, id::Id, tile::Tile},
     image::Image,
 };
 
 // Model hold all data relevant to constructing and resolving the wave.
 #[derive(Clone, Debug)]
 pub struct Model {
+    pub tile_dimensions: (usize, usize),
     pub id_to_tile: HashMap<Id, Tile>,
     pub tile_to_id: HashMap<Tile, Id>,
     pub frequency_hints: HashMap<Id, f64>,
 }
 
 impl Model {
-    pub fn new(tile_size: usize, with_tile_variations: bool, image: &Image) -> Model {
-        let tile_to_freq = mk_tiles(tile_size, image, with_tile_variations);
+    pub fn new(
+        tile_dimensions: (usize, usize),
+        with_tile_variations: bool,
+        image: &Image,
+    ) -> Model {
+        let tile_to_freq = mk_tiles(tile_dimensions, image, with_tile_variations);
         let tile_to_id: HashMap<Tile, Id> = tile_to_freq
             .keys()
             .enumerate()
@@ -28,6 +33,7 @@ impl Model {
         let frequency_hints: HashMap<Id, f64> = mk_frequency_hints(&id_to_tile, &tile_to_id);
 
         Model {
+            tile_dimensions,
             id_to_tile,
             tile_to_id,
             frequency_hints,
@@ -37,16 +43,21 @@ impl Model {
 
 // Given an image and a tile size, construct and return the tiles
 // paired with their frequency of occurance in the input image.
-fn mk_tiles(tile_size: usize, image: &Image, with_tile_variations: bool) -> HashMap<Tile, i32> {
+fn mk_tiles(
+    tile_dimensions: (usize, usize),
+    image: &Image,
+    with_tile_variations: bool,
+) -> HashMap<Tile, i32> {
+    let (tile_w, tile_h) = tile_dimensions;
     let mut tile_to_freq: HashMap<Tile, i32> = HashMap::new();
 
     for y in 0..image.height as usize {
         for x in 0..image.width as usize {
             let mut pixels = vec![];
-            for y_t in y..(y + tile_size) {
+            for y_t in y..(y + tile_h) {
                 let mut pixel_row = vec![];
-                for x_t in x..(x + tile_size) {
-                    let pixel = Coord2d {
+                for x_t in x..(x + tile_w) {
+                    let pixel = Vector2 {
                         x: (x_t as i32) % image.width,
                         y: (y_t as i32) % image.height,
                     };

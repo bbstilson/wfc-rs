@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use adjacency_rules::AdjacencyRules;
-use argh::{self, FromArgs};
-use data::{coord_2d::Coord2d, id::Id, tile::Tile};
+use clap::{Parser, ValueEnum};
+use data::{coord_2d::Vector2, id::Id, tile::Tile};
 use model::Model;
 use wave_function::WaveFunction;
 
@@ -13,82 +13,107 @@ mod image;
 mod model;
 mod wave_function;
 
-#[derive(FromArgs, Debug)]
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
 /// Run wfc-rs
-struct WFCArgs {
-    /// input image
-    #[argh(option)]
+struct Args {
+    /// input image location
     input: String,
 
-    /// output width in tiles
-    #[argh(option, default = "30")]
-    output_width: usize,
+    /// output dimensions in pixels
+    #[clap(short, long, value_parser = parse_tuple_arg)]
+    output_dimensions: (usize, usize),
 
-    /// output height in tiles
-    #[argh(option, default = "15")]
-    output_height: usize,
-
-    /// size of tile to parse from input image
-    #[argh(option, default = "3")]
-    tile_size: usize,
+    /// tile dimensions to parse from input image
+    #[clap(short, long, value_parser = parse_tuple_arg)]
+    tile_dimensions: (usize, usize),
 
     /// whether or not to take snapshot images
-    #[argh(switch)]
+    #[clap(short, long)]
     snapshots: bool,
 
     /// whether or not create all variations (rotations and reflections) of tiles
-    #[argh(switch)]
+    #[clap(short, long)]
     with_tile_variations: bool,
+
+    /// parse input as a tiled map
+    #[clap(long, arg_enum, default_value_t = ParseMethod::Overlap)]
+    parse_method: ParseMethod,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+enum ParseMethod {
+    Overlap,
+    Tiled,
+}
+
+fn parse_tuple_arg(value: &str) -> Result<(usize, usize), String> {
+    let parts = value
+        .split(',')
+        .map(|part| part.trim())
+        .collect::<Vec<&str>>();
+
+    if parts.len() == 2 {
+        if let (Ok(w), Ok(h)) = (usize::from_str(parts[0]), usize::from_str(parts[1])) {
+            Ok((w, h))
+        } else {
+            Err(format!(
+                "Could not parse value into tuple of (usize, usize): {}",
+                value
+            ))
+        }
+    } else {
+        Err(format!(
+            "Could not parse value into tuple of (usize, usize): {}",
+            value
+        ))
+    }
 }
 
 // TODO:
-// - overlap or tiled
+// - tiled mode
 // - reflections and rotations of tiles
+// - weights in directions
+// - global weights of tiles
+// - shannon entropy of cells
+// - diagonal directions?
 
 fn main() {
-    let args: WFCArgs = argh::from_env();
+    let args: Args = Args::parse();
 
     let input = image::Image::from_png(&args.input);
-    let model = Model::new(args.tile_size, args.with_tile_variations, &input);
+    let model = Model::new(args.tile_dimensions, args.with_tile_variations, &input);
     let id_to_tile: HashMap<Id, Tile> = model.id_to_tile.clone();
     let adjacency_rules = AdjacencyRules::from_model(&model);
 
     let mut wave_function = WaveFunction::new(
-        args.output_width,
-        args.output_height,
+        args.output_dimensions,
         adjacency_rules,
         model,
         args.snapshots,
-        args.tile_size,
         id_to_tile.clone(),
     );
 
     let state = wave_function.run();
 
-    let mut data = vec![
-        vec![128; args.output_width as usize * 3 * args.tile_size];
-        args.output_height as usize * args.tile_size
-    ];
+    let (output_width, output_height) = args.output_dimensions;
+    // let (tile_width, tile_height) = args.tile_dimensions;
+    let mut data = vec![vec![0; output_width as usize * 3]; output_height as usize];
 
-    for g_y in 0..args.output_height as usize {
-        for g_x in 0..args.output_width as usize {
-            let pixel = Coord2d {
-                x: g_x as i32,
-                y: g_y as i32,
+    for y in 0..output_height {
+        for x in 0..output_width {
+            let pixel = Vector2 {
+                x: x as i32,
+                y: y as i32,
             };
-            let id = state[&pixel];
-            let tile = &id_to_tile[&id];
 
-            for n_y in 0..args.tile_size {
-                for n_x in 0..args.tile_size {
-                    let color = &tile.pixels[n_y][n_x];
-                    let f_x = (g_x * args.tile_size * 3) + (n_x * 3);
-                    let f_y = (g_y * args.tile_size) + n_y;
-                    data[f_y][f_x] = color.0[0];
-                    data[f_y][f_x + 1] = color.0[1];
-                    data[f_y][f_x + 2] = color.0[2];
-                }
-            }
+            let tile_id = state[&pixel];
+            let tile = &id_to_tile[&tile_id];
+            let color = &tile.pixels[0][0];
+
+            data[y][x * 3] = color.0[0];
+            data[y][x * 3 + 1] = color.0[1];
+            data[y][x * 3 + 2] = color.0[2];
         }
     }
 

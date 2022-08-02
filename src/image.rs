@@ -5,12 +5,12 @@ use std::path::Path;
 
 use png::OutputInfo;
 
-use crate::data::{color::Color, coord_2d::Coord2d};
+use crate::data::{color::Color, coord_2d::Vector2};
 
 pub struct Image {
     pub width: i32,
     pub height: i32,
-    pub pixels: HashMap<Coord2d, Color>,
+    pub pixels: HashMap<Vector2, Color>,
 }
 
 impl Image {
@@ -30,7 +30,7 @@ impl Image {
             for x in 0..width {
                 let idx = get_position(x, y, width, bytes_per_color) as usize;
                 let color = &bytes[idx..(idx + 3)].to_owned();
-                pixels.insert(Coord2d { x, y }, Color(color.clone()));
+                pixels.insert(Vector2 { x, y }, Color(color.clone()));
             }
         }
 

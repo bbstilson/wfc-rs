@@ -2,40 +2,37 @@ use std::collections::HashMap;
 
 use rand::{self, distributions::WeightedIndex, prelude::Distribution};
 
-use crate::data::{cell_state::CellState, coord_2d::Coord2d, id::Id, tile::Tile};
+use crate::data::{cell_state::CellState, coord_2d::Vector2, id::Id, tile::Tile};
 use crate::{adjacency_rules::AdjacencyRules, helpers, image, model::Model};
 
-type State = HashMap<Coord2d, CellState>;
-type CollapsedState = HashMap<Coord2d, Id>;
+type State = HashMap<Vector2, CellState>;
+type CollapsedState = HashMap<Vector2, Id>;
 
 pub struct WaveFunction {
     state: State,
     model: Model,
     adjacency_rules: AdjacencyRules,
-    grid_width: usize,
-    grid_height: usize,
+    grid_dimensions: (usize, usize),
     cells_to_collapse: usize,
-    tile_size: usize,
     take_snapshots: bool,
     id_to_tile: HashMap<Id, Tile>,
 }
 
 impl WaveFunction {
     pub fn new(
-        grid_width: usize,
-        grid_height: usize,
+        output_dimensions: (usize, usize),
         adjacency_rules: AdjacencyRules,
         model: Model,
         take_snapshots: bool,
-        tile_size: usize,
         id_to_tile: HashMap<Id, Tile>,
     ) -> WaveFunction {
+        let (output_w, output_h) = output_dimensions;
         let mut init = HashMap::new();
         let choices = model.id_to_tile.keys().map(|id| *id).collect::<Vec<Id>>();
-        for y in 0..grid_height {
-            for x in 0..grid_width {
+        for y in 0..output_h {
+            for x in 0..output_w {
                 init.insert(
-                    Coord2d {
+                    Vector2 {
                         x: x as i32,
                         y: y as i32,
                     },
@@ -49,13 +46,11 @@ impl WaveFunction {
         WaveFunction {
             model,
             adjacency_rules,
-            grid_width,
-            grid_height,
+            grid_dimensions: output_dimensions,
             take_snapshots,
-            tile_size,
             id_to_tile,
             state: init,
-            cells_to_collapse: grid_width * grid_height,
+            cells_to_collapse: output_w * output_h,
         }
     }
 
@@ -63,11 +58,26 @@ impl WaveFunction {
         self.cells_to_collapse == 0
     }
 
+    fn print_progress(&self) {
+        let (width, height) = self.grid_dimensions;
+        let area = width * height;
+        let ten_percent = area / 10;
+
+        if self.cells_to_collapse % ten_percent == 0 {
+            println!(
+                "{}% done",
+                (100 - (self.cells_to_collapse / ten_percent) * 10)
+            )
+        }
+    }
+
     pub fn run(&mut self) -> CollapsedState {
         self.iterate(0)
     }
 
     fn iterate(&mut self, depth: usize) -> CollapsedState {
+        self.print_progress();
+
         if self.take_snapshots {
             self.take_snapshot(depth);
         }
@@ -88,7 +98,7 @@ impl WaveFunction {
             })
     }
 
-    fn collapse(&mut self, to_collapse: Coord2d) {
+    fn collapse(&mut self, to_collapse: Vector2) {
         let choices = &self.state.get(&to_collapse).unwrap().get_choices();
         let choice = self.get_random_choice(choices);
 
@@ -102,13 +112,12 @@ impl WaveFunction {
         );
     }
 
-    fn propagate(&mut self, collapsed: Coord2d) {
-        let mut stack: Vec<Coord2d> = vec![collapsed];
+    fn propagate(&mut self, collapsed: Vector2) {
+        let mut stack: Vec<Vector2> = vec![collapsed];
         while !stack.is_empty() {
             if let Some(coord) = stack.pop() {
                 if let Some(cell_state) = self.state.get(&coord) {
-                    let neighbors =
-                        helpers::get_neighbors(self.grid_width, self.grid_height, &coord);
+                    let neighbors = helpers::get_neighbors(self.grid_dimensions, &coord);
 
                     let choices = cell_state.get_choices();
 
@@ -158,13 +167,13 @@ impl WaveFunction {
         choices[dist.sample(&mut rng)]
     }
 
-    fn get_lowest_entropy_coord(&self) -> Coord2d {
+    fn get_lowest_entropy_coord(&self) -> Vector2 {
         let mut choices = self
             .state
             .iter()
             .filter(|(_, cell_state)| !cell_state.is_collapsed())
             .map(|(coord, cell_state)| (*coord, cell_state.get_choices().len()))
-            .collect::<Vec<(Coord2d, usize)>>();
+            .collect::<Vec<(Vector2, usize)>>();
 
         choices.sort_by(|(_, choices_a), (_, choices_b)| choices_a.cmp(choices_b));
 
@@ -173,36 +182,27 @@ impl WaveFunction {
     }
 
     fn take_snapshot(&self, depth: usize) {
-        let mut data = vec![
-            vec![128; self.grid_width * 3 * self.tile_size];
-            self.grid_height * self.tile_size
-        ];
+        let (width, height) = self.grid_dimensions;
+        let mut data = vec![vec![128; width * 3]; height];
 
-        for g_y in 0..self.grid_height {
-            for g_x in 0..self.grid_width {
-                let pixel = Coord2d {
-                    x: g_x as i32,
-                    y: g_y as i32,
+        for y in 0..height {
+            for x in 0..width {
+                let pixel = Vector2 {
+                    x: x as i32,
+                    y: y as i32,
                 };
                 let state = &self.state[&pixel];
-                let tile = state
+                let color = state
                     .get_choices()
                     .iter()
                     .map(|id| &self.id_to_tile[id])
-                    .map(|t| t.clone())
-                    .reduce(|l, r| l.blend(r))
+                    .map(|t| t.pixels[0][0].clone())
+                    .reduce(|l, r| l.blend(&r))
                     .unwrap();
 
-                for n_y in 0..self.tile_size {
-                    for n_x in 0..self.tile_size {
-                        let color = &tile.pixels[n_y][n_x];
-                        let f_x = (g_x * self.tile_size * 3) + (n_x * 3);
-                        let f_y = (g_y * self.tile_size) + n_y;
-                        data[f_y][f_x] = color.0[0];
-                        data[f_y][f_x + 1] = color.0[1];
-                        data[f_y][f_x + 2] = color.0[2];
-                    }
-                }
+                data[y][x * 3] = color.0[0];
+                data[y][x * 3 + 1] = color.0[1];
+                data[y][x * 3 + 2] = color.0[2];
             }
         }
 

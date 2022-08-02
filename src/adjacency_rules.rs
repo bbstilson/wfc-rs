@@ -24,7 +24,7 @@ impl AdjacencyRules {
         tiles.iter().for_each(|a| {
             tiles.iter().for_each(|b| {
                 for direction in Direction::all() {
-                    if a.overlaps(b, &direction) {
+                    if a.overlaps(b, &direction, model.tile_dimensions) {
                         adjacency_rules.allow(
                             model.tile_to_id[&a],
                             model.tile_to_id[&b],
