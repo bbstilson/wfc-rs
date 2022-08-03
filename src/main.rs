@@ -76,6 +76,7 @@ fn parse_tuple_arg(value: &str) -> Result<(usize, usize), String> {
 // - weights in directions
 // - global weights of tiles
 // - shannon entropy of cells
+// - detect ground tiles and do something with them
 // - diagonal directions?
 
 fn main() {

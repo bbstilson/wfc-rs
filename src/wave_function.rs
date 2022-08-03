@@ -72,22 +72,22 @@ impl WaveFunction {
     }
 
     pub fn run(&mut self) -> CollapsedState {
-        self.iterate(0)
+        self.iterate()
     }
 
-    fn iterate(&mut self, depth: usize) -> CollapsedState {
-        self.print_progress();
-
-        if self.take_snapshots {
-            self.take_snapshot(depth);
-        }
-
-        let to_collapse = self.get_lowest_entropy_coord();
-        self.collapse(to_collapse);
-        self.propagate(to_collapse);
-
+    fn iterate(&mut self) -> CollapsedState {
+        let mut depth = 0;
         while !self.is_collapsed() {
-            self.iterate(depth + 1);
+            self.print_progress();
+
+            if self.take_snapshots {
+                self.take_snapshot(depth);
+            }
+
+            let to_collapse = self.get_lowest_entropy_coord();
+            self.collapse(to_collapse);
+            self.propagate(to_collapse);
+            depth += 1;
         }
 
         self.state
@@ -112,9 +112,11 @@ impl WaveFunction {
         );
     }
 
-    fn propagate(&mut self, collapsed: Vector2) {
+    fn propagate(&mut self, collapsed: Vector2) -> usize {
         let mut stack: Vec<Vector2> = vec![collapsed];
+        let mut iterations = 0;
         while !stack.is_empty() {
+            iterations += 1;
             if let Some(coord) = stack.pop() {
                 if let Some(cell_state) = self.state.get(&coord) {
                     let neighbors = helpers::get_neighbors(self.grid_dimensions, &coord);
@@ -136,8 +138,8 @@ impl WaveFunction {
                             for neighbor_choice in &neighbor_choices {
                                 let is_valid = choices.iter().any(|choice| {
                                     self.adjacency_rules.valid_neighbors(
-                                        choice,
-                                        &neighbor_choice,
+                                        *choice,
+                                        *neighbor_choice,
                                         direction,
                                     )
                                 });
@@ -155,6 +157,7 @@ impl WaveFunction {
                 }
             }
         }
+        iterations
     }
 
     fn get_random_choice(&self, choices: &Vec<Id>) -> Id {

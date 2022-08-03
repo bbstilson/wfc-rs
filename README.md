@@ -2,19 +2,25 @@
 
 Original Algorithm: <https://github.com/mxgmn/WaveFunctionCollapse>
 
-<https://robertheaton.com/2018/12/17/wavefunction-collapse-algorithm/>
+Helpful basic explanation for tiled model: <https://robertheaton.com/2018/12/17/wavefunction-collapse-algorithm/>
 
-<https://www.gridbugs.org/wave-function-collapse/>
+Helpful explanation in Rust: <https://www.gridbugs.org/wave-function-collapse/>
 
-![animated collapse](./animated.gif)
+## Renderings
 
-## Running
+![animated flowers](./flowers.gif)
 
 ```bash
 cargo run --release -- ./input/flowers.png -o 80,40 -t 3,3
 ```
 
-For more info:
+![animated city](./city.gif)
+
+```bash
+cargo run --release -- ./input/city.png -o 100,50 -t 4,4
+```
+
+## Running
 
 ```bash
 cargo run --release -- --help
@@ -54,6 +60,42 @@ OPTIONS:
 
 To build the animated gif, the program must be run with the `-s, --snapshots` flag, then you can run the python script to compile all the images into a gif.
 
+Depending on the number of snapshots taken -- for `-o 150,100`, 15,000 images will be produced -- you might need to increase your `ulimit` (or whatever the equivalent is for your OS).
+
+```bash
+ulimit -n 30000
+```
+
 ```bash
 poetry run python animate.py
+```
+
+## Profiling Notes
+
+The original implementation was very slow, and it's still quite slow. Here are scattered notes on profiling:
+
+Enable:
+
+```toml
+[profile.release]
+debug = true
+```
+
+Build a release build:
+
+```bash
+cargo build --release
+```
+
+Install [flamegraph-rs](https://github.com/flamegraph-rs/flamegraph) and linux (Pop!_OS. See flamegraph-rs readme for other os instructions) deps:
+
+```bash
+sudo apt install linux-tools-common linux-tools-generic
+cargo install flamegraph
+```
+
+Build a flamegraph:
+
+```bash
+flamegraph -- ./target/release/wfc-rs ./input/city.png -o 40,20 -t 3,3
 ```
