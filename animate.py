@@ -19,20 +19,20 @@ def main() -> None:
         "convert"
     ), "You must have 'convert' installed. On linux, you can run: `sudo apt-get install imagemagick`"
 
-    # for f in [f for f in os.listdir(OUTPUT_DIR) if "resized" not in f]:
-    #     num = f.split(".")[0]
-    #     subprocess.run(
-    #         [
-    #             "convert",
-    #             f"{OUTPUT_DIR}/{num}.png",
-    #             "-filter",
-    #             "point",
-    #             "-resize",
-    #             "600%",
-    #             f"{OUTPUT_DIR}/{num}_resized.png",
-    #         ],
-    #         check=True,
-    #     )
+    for f in [f for f in os.listdir(OUTPUT_DIR) if "resized" not in f]:
+        num = f.split(".")[0]
+        subprocess.run(
+            [
+                "convert",
+                f"{OUTPUT_DIR}/{num}.png",
+                "-filter",
+                "point",
+                "-resize",
+                "600%",
+                f"{OUTPUT_DIR}/{num}_resized.png",
+            ],
+            check=True,
+        )
 
     frames = glob.glob(f"{OUTPUT_DIR}/*_resized.png")
     frames.sort(key=by_file_id)

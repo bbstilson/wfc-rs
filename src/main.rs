@@ -11,6 +11,7 @@ mod data;
 mod helpers;
 mod image;
 mod model;
+mod unique_stack;
 mod wave_function;
 
 #[derive(Parser, Debug)]

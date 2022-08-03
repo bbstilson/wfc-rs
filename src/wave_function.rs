@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use rand::{self, distributions::WeightedIndex, prelude::Distribution};
 
 use crate::data::{cell_state::CellState, coord_2d::Vector2, id::Id, tile::Tile};
+use crate::unique_stack::UniqueStack;
 use crate::{adjacency_rules::AdjacencyRules, helpers, image, model::Model};
 
 type State = HashMap<Vector2, CellState>;
@@ -76,19 +77,20 @@ impl WaveFunction {
     }
 
     fn iterate(&mut self) -> CollapsedState {
-        let mut depth = 0;
+        let mut iterations = 0;
         while !self.is_collapsed() {
             self.print_progress();
 
             if self.take_snapshots {
-                self.take_snapshot(depth);
+                self.take_snapshot(iterations);
             }
 
             let to_collapse = self.get_lowest_entropy_coord();
             self.collapse(to_collapse);
-            self.propagate(to_collapse);
-            depth += 1;
+            iterations += self.propagate(to_collapse);
         }
+
+        println!("did {} iterations", iterations);
 
         self.state
             .iter()
@@ -113,14 +115,14 @@ impl WaveFunction {
     }
 
     fn propagate(&mut self, collapsed: Vector2) -> usize {
-        let mut stack: Vec<Vector2> = vec![collapsed];
         let mut iterations = 0;
+        let mut stack = UniqueStack::from([collapsed]);
+
         while !stack.is_empty() {
+            println!("{:?}", stack);
             iterations += 1;
             if let Some(coord) = stack.pop() {
                 if let Some(cell_state) = self.state.get(&coord) {
-                    let neighbors = helpers::get_neighbors(self.grid_dimensions, &coord);
-
                     let choices = cell_state.get_choices();
 
                     // For each neighbor, check if the cell we just collapsed affects
@@ -128,32 +130,34 @@ impl WaveFunction {
                     // Specifically, if the neighbor has any choices that still might
                     // work, then it's still fine.
                     // If so, remove that choice, then add the neighbor to the stack.
-                    neighbors.iter().for_each(|(neighbor, direction)| {
-                        let maybe_neighbor_state =
-                            self.state.get_mut(neighbor).filter(|cs| !cs.is_collapsed());
-                        if let Some(neighbor_cell_state) = maybe_neighbor_state {
-                            let neighbor_choices = neighbor_cell_state.get_choices();
+                    helpers::get_neighbors(self.grid_dimensions, &coord)
+                        .iter()
+                        .for_each(|(neighbor, direction)| {
+                            let maybe_neighbor_state =
+                                self.state.get_mut(neighbor).filter(|cs| !cs.is_collapsed());
+                            if let Some(neighbor_state) = maybe_neighbor_state {
+                                let neighbor_choices = neighbor_state.get_choices();
 
-                            let mut add_neighbor = false;
-                            for neighbor_choice in &neighbor_choices {
-                                let is_valid = choices.iter().any(|choice| {
-                                    self.adjacency_rules.valid_neighbors(
-                                        *choice,
-                                        *neighbor_choice,
-                                        direction,
-                                    )
-                                });
+                                let mut add_neighbor = false;
+                                for neighbor_choice in &neighbor_choices {
+                                    let is_valid = choices.iter().any(|choice| {
+                                        self.adjacency_rules.valid_neighbors(
+                                            *choice,
+                                            *neighbor_choice,
+                                            direction,
+                                        )
+                                    });
 
-                                if !is_valid {
-                                    neighbor_cell_state.remove_choice(neighbor_choice);
-                                    add_neighbor = true;
+                                    if !is_valid {
+                                        neighbor_state.remove_choice(neighbor_choice);
+                                        add_neighbor = true;
+                                    }
+                                }
+                                if add_neighbor {
+                                    stack.push(*neighbor);
                                 }
                             }
-                            if add_neighbor {
-                                stack.push(*neighbor);
-                            }
-                        }
-                    });
+                        });
                 }
             }
         }
