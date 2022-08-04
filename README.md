@@ -11,13 +11,13 @@ Helpful explanation in Rust: <https://www.gridbugs.org/wave-function-collapse/>
 ![animated flowers](./flowers.gif)
 
 ```bash
-cargo run --release -- ./input/flowers.png -o 80,40 -t 3,3
+cargo run --release -- ./input/flowers.png -o 80,40 -t 3,3 -m
 ```
 
 ![animated city](./city.gif)
 
 ```bash
-cargo run --release -- ./input/city.png -o 100,50 -t 4,4
+cargo run --release -- ./input/smog-city.png -o 80,40 -t 4,4 -m
 ```
 
 ## Running
@@ -45,8 +45,8 @@ OPTIONS:
         --parse-method <PARSE_METHOD>
             parse input as a tiled map [default: overlap] [possible values: overlap, tiled]
 
-    -s, --snapshots
-            whether or not to take snapshot images
+    -m, --make-gif
+            whether or not to make a gif (warning: very slow)
 
     -t, --tile-dimensions <TILE_DIMENSIONS>
             tile dimensions to parse from input image
@@ -58,44 +58,13 @@ OPTIONS:
             whether or not create all variations (rotations and reflections) of tiles
 ```
 
-To build the animated gif, the program must be run with the `-s, --snapshots` flag, then you can run the python script to compile all the images into a gif.
+## TODOs
 
-Depending on the number of snapshots taken -- for `-o 150,100`, 15,000 images will be produced -- you might need to increase your `ulimit` (or whatever the equivalent is for your OS).
-
-```bash
-ulimit -n 30000
-```
-
-```bash
-poetry run python animate.py
-```
-
-## Profiling Notes
-
-The original implementation was very slow, and it's still quite slow. Here are scattered notes on profiling:
-
-Enable:
-
-```toml
-[profile.release]
-debug = true
-```
-
-Build a release build:
-
-```bash
-cargo build --release
-```
-
-Install [flamegraph-rs](https://github.com/flamegraph-rs/flamegraph) and linux (Pop!_OS. See flamegraph-rs readme for other os instructions) deps:
-
-```bash
-sudo apt install linux-tools-common linux-tools-generic
-cargo install flamegraph
-```
-
-Build a flamegraph:
-
-```bash
-flamegraph -- ./target/release/wfc-rs ./input/city.png -o 40,20 -t 3,3
-```
+- tiled mode
+- reflections and rotations of tiles
+- weights in directions
+- global weights of tiles
+- shannon entropy of cells
+- detect ground tiles and do something with them
+- diagonal directions?
+- 3d models?

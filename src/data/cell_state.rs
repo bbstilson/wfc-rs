@@ -1,6 +1,5 @@
 use crate::data::id::Id;
 
-#[derive(Debug)]
 pub struct CellState {
     pub choices: Vec<Id>,
     pub state: Option<Id>,

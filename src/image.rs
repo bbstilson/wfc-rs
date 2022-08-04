@@ -1,19 +1,44 @@
-use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 
+use anyhow::{Ok, Result};
 use png::OutputInfo;
 
-use crate::data::{color::Color, coord_2d::Vector2};
+use crate::data::{
+    color::{self, RGB},
+    coord_2d::Vector2,
+};
 
 pub struct Image {
-    pub width: i32,
-    pub height: i32,
-    pub pixels: HashMap<Vector2, Color>,
+    pub width: u32,
+    pub height: u32,
+    pub pixels: Vec<RGB>,
 }
 
 impl Image {
+    pub fn new(width: u32, height: u32) -> Image {
+        Image {
+            width,
+            height,
+            pixels: vec![color::BLACK; width as usize * height as usize],
+        }
+    }
+
+    pub fn set_color(&mut self, at: Vector2, color: RGB) {
+        let idx = self.get_idx(at);
+        self.pixels[idx] = color;
+    }
+
+    pub fn at(&self, at: Vector2) -> RGB {
+        let idx = self.get_idx(at);
+        self.pixels[idx]
+    }
+
+    fn get_idx(&self, at: Vector2) -> usize {
+        ((at.y * self.width as i32) + at.x) as usize
+    }
+
     pub fn from_png(path: &str) -> Image {
         let (info, buf) = read_image(path);
         let bytes_per_color = match info.color_type {
@@ -23,14 +48,17 @@ impl Image {
         };
 
         let bytes = buf[..info.buffer_size()].to_vec();
-        let mut pixels = HashMap::new();
-        let width = info.width as i32;
-        let height = info.height as i32;
+        let mut pixels = vec![];
+        let width = info.width;
+        let height = info.height;
         for y in 0..height {
             for x in 0..width {
                 let idx = get_position(x, y, width, bytes_per_color) as usize;
-                let color = &bytes[idx..(idx + 3)].to_owned();
-                pixels.insert(Vector2 { x, y }, Color(color.clone()));
+                let mut color: RGB = [0; 3];
+                for i in 0..3 {
+                    color[i] = bytes[idx + i];
+                }
+                pixels.push(color);
             }
         }
 
@@ -39,6 +67,22 @@ impl Image {
             width,
             height,
         }
+    }
+
+    pub fn save(&self, path: &str) -> Result<()> {
+        let file_name = format!("{}.png", path);
+        let path = Path::new(&file_name);
+        let file = File::create(path)?;
+        let ref mut w = BufWriter::new(file);
+
+        let mut encoder = png::Encoder::new(w, self.width, self.height);
+        encoder.set_color(png::ColorType::Rgb);
+        let mut writer = encoder.write_header()?;
+
+        let buf: Vec<u8> = self.pixels.iter().flat_map(|c| c.clone()).collect();
+        writer.write_image_data(&buf.as_slice())?;
+
+        Ok(())
     }
 }
 
@@ -52,26 +96,6 @@ fn read_image(path: &str) -> (OutputInfo, Vec<u8>) {
     (info, buf)
 }
 
-pub fn output_image(name: &str, grid: Vec<Vec<u8>>) {
-    let file_name = format!("output/{}.png", name);
-    let path = Path::new(&file_name);
-    let file = File::create(path).unwrap();
-    let ref mut w = BufWriter::new(file);
-
-    let width = grid[0].len() as u32 / 3; // divide by bytes per pixel (rgb)
-    let height = grid.len() as u32;
-
-    let mut encoder = png::Encoder::new(w, width, height);
-    encoder.set_color(png::ColorType::Rgb);
-    let mut writer = encoder.write_header().unwrap();
-
-    let mut buf: Vec<u8> = vec![];
-    for mut row in grid {
-        buf.append(&mut row);
-    }
-    writer.write_image_data(&buf.as_slice()).unwrap();
-}
-
-fn get_position(pos_x: i32, pos_y: i32, width: i32, bytes_per_color: i32) -> i32 {
-    (pos_y * width + pos_x) * bytes_per_color
+fn get_position(pos_x: u32, pos_y: u32, width: u32, bytes_per_color: u32) -> usize {
+    ((pos_y * width + pos_x) * bytes_per_color) as usize
 }
