@@ -58,15 +58,22 @@ fn mk_tiles(
                 let mut pixel_row = vec![];
                 for x_t in x..(x + tile_w) {
                     let pixel = Vector2 {
-                        x: (x_t as i32) % image.width,
-                        y: (y_t as i32) % image.height,
+                        x: (x_t as i32) % image.width as i32,
+                        y: (y_t as i32) % image.height as i32,
                     };
-                    let color = &image.pixels[&pixel];
+                    let color = image.at(pixel);
                     pixel_row.push(color.clone());
                 }
                 pixels.push(pixel_row);
             }
-            for tile in mk_versions(Tile { pixels }, with_tile_variations) {
+
+            let tiles = if with_tile_variations {
+                Tile::permute(pixels)
+            } else {
+                vec![Tile { pixels }]
+            };
+
+            for tile in tiles {
                 let freq = tile_to_freq.get(&tile).map(|f| f + 1).unwrap_or(1);
                 tile_to_freq.insert(tile, freq);
             }
@@ -91,40 +98,4 @@ fn mk_frequency_hints(
         .iter()
         .map(|(id, freq)| (*id, *freq as f64 / total_ids))
         .collect()
-}
-
-fn mk_versions(tile: Tile, with_tile_variations: bool) -> Vec<Tile> {
-    let mut tiles = vec![];
-    tiles.push(tile);
-
-    if with_tile_variations {
-        unimplemented!()
-        // TODO: conditionally make all the rotations
-        // if symmetry.contains(S2_IDENTITY) {
-        //     symm_bufs.push(buf.clone())
-        // }
-        // if symmetry.contains(S2_ROTATE_90) {
-        //     symm_bufs.push(rotate90(&buf))
-        // }
-        // if symmetry.contains(S2_ROTATE_180) {
-        //     symm_bufs.push(rotate180(&buf))
-        // }
-        // if symmetry.contains(S2_ROTATE_270) {
-        //     symm_bufs.push(rotate270(&buf))
-        // }
-        // if symmetry.contains(S2_REFLECT_Y) {
-        //     symm_bufs.push(flip_horizontal(&buf))
-        // }
-        // if symmetry.contains(S2_REFLECT_X) {
-        //     symm_bufs.push(flip_vertical(&buf))
-        // }
-        // if symmetry.contains(S2_REFLECT_X_ROT90) {
-        //     symm_bufs.push(flip_vertical(&rotate90(&buf)))
-        // }
-        // if symmetry.contains(S2_REFLECT_Y_ROT90) {
-        //     symm_bufs.push(flip_horizontal(&rotate90(&buf)))
-        // }
-    }
-
-    tiles
 }

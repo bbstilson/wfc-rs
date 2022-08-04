@@ -1,27 +1,8 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
-}
+pub type Direction = usize;
 
-impl Direction {
-    pub fn all() -> Vec<Direction> {
-        vec![
-            Direction::Up,
-            Direction::Down,
-            Direction::Left,
-            Direction::Right,
-        ]
-    }
+pub const UP: Direction = 0;
+pub const DOWN: Direction = 1;
+pub const LEFT: Direction = 2;
+pub const RIGHT: Direction = 3;
 
-    pub fn idx(&self) -> usize {
-        match self {
-            Direction::Up => 0,
-            Direction::Down => 1,
-            Direction::Left => 2,
-            Direction::Right => 3,
-        }
-    }
-}
+pub const ALL: [Direction; 4] = [UP, DOWN, LEFT, RIGHT];

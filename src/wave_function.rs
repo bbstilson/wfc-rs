@@ -1,13 +1,23 @@
-use std::collections::HashMap;
-
+use anyhow::Result;
 use rand::{self, distributions::WeightedIndex, prelude::Distribution};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::data::color::Color;
 use crate::data::{cell_state::CellState, coord_2d::Vector2, id::Id, tile::Tile};
+use crate::gif_builder::GifBuilder;
 use crate::unique_stack::UniqueStack;
-use crate::{adjacency_rules::AdjacencyRules, helpers, image, model::Model};
+use crate::{adjacency_rules::AdjacencyRules, helpers, image, image::Image, model::Model};
 
 type State = HashMap<Vector2, CellState>;
 type CollapsedState = HashMap<Vector2, Id>;
+
+// Rendering a snapshot everytime a cell collapses is visually uninteresting (no one
+// likes to watch a 40 second gif). To save space and time, we only cache a state if
+// `SNAPSHOT_COUNTER % GIF_SIZE_FACTOR == 0` is true.
+// See: `should_take_snapshot`
+static SNAPSHOT_COUNTER: AtomicUsize = AtomicUsize::new(0);
+const GIF_SIZE_FACTOR: usize = 10;
 
 pub struct WaveFunction {
     state: State,
@@ -15,8 +25,9 @@ pub struct WaveFunction {
     adjacency_rules: AdjacencyRules,
     grid_dimensions: (usize, usize),
     cells_to_collapse: usize,
-    take_snapshots: bool,
+    make_gif: bool,
     id_to_tile: HashMap<Id, Tile>,
+    snapshots: Vec<Image>,
 }
 
 impl WaveFunction {
@@ -24,7 +35,7 @@ impl WaveFunction {
         output_dimensions: (usize, usize),
         adjacency_rules: AdjacencyRules,
         model: Model,
-        take_snapshots: bool,
+        make_gif: bool,
         id_to_tile: HashMap<Id, Tile>,
     ) -> WaveFunction {
         let (output_w, output_h) = output_dimensions;
@@ -47,9 +58,10 @@ impl WaveFunction {
         WaveFunction {
             model,
             adjacency_rules,
-            grid_dimensions: output_dimensions,
-            take_snapshots,
+            make_gif,
             id_to_tile,
+            snapshots: vec![],
+            grid_dimensions: output_dimensions,
             state: init,
             cells_to_collapse: output_w * output_h,
         }
@@ -66,43 +78,50 @@ impl WaveFunction {
 
         if self.cells_to_collapse % ten_percent == 0 {
             println!(
-                "{}% done",
+                "Progress: {}%",
                 (100 - (self.cells_to_collapse / ten_percent) * 10)
             )
         }
     }
 
-    pub fn run(&mut self) -> CollapsedState {
+    pub fn run(&mut self) -> Result<CollapsedState> {
         self.iterate()
     }
 
-    fn iterate(&mut self) -> CollapsedState {
+    fn iterate(&mut self) -> Result<CollapsedState> {
         let mut iterations = 0;
         while !self.is_collapsed() {
-            self.print_progress();
-
-            if self.take_snapshots {
-                self.take_snapshot(iterations);
-            }
-
             let to_collapse = self.get_lowest_entropy_coord();
-            self.collapse(to_collapse);
-            iterations += self.propagate(to_collapse);
+            self.collapse(to_collapse)?;
+            iterations += self.propagate(to_collapse)?;
         }
 
-        println!("did {} iterations", iterations);
+        println!("Iterations completed: {}", iterations);
 
-        self.state
+        if self.make_gif {
+            GifBuilder::make_gif(&self.snapshots)?;
+        }
+
+        let final_state = self
+            .state
             .iter()
             .fold(HashMap::new(), |mut acc, (coord, cell_state)| {
                 acc.insert(*coord, cell_state.state.unwrap());
                 acc
-            })
+            });
+
+        Ok(final_state)
     }
 
-    fn collapse(&mut self, to_collapse: Vector2) {
+    fn collapse(&mut self, to_collapse: Vector2) -> Result<()> {
         let choices = &self.state.get(&to_collapse).unwrap().get_choices();
-        let choice = self.get_random_choice(choices);
+        let choice = self.get_random_choice(choices)?;
+
+        self.print_progress();
+
+        if self.should_take_snapshot() {
+            self.take_snapshot();
+        }
 
         self.cells_to_collapse -= 1;
         self.state.insert(
@@ -112,14 +131,19 @@ impl WaveFunction {
                 state: Some(choice),
             },
         );
+
+        Ok(())
     }
 
-    fn propagate(&mut self, collapsed: Vector2) -> usize {
+    fn should_take_snapshot(&self) -> bool {
+        self.make_gif && SNAPSHOT_COUNTER.fetch_add(1, Ordering::SeqCst) % GIF_SIZE_FACTOR == 0
+    }
+
+    fn propagate(&mut self, collapsed: Vector2) -> Result<usize> {
         let mut iterations = 0;
         let mut stack = UniqueStack::from([collapsed]);
 
         while !stack.is_empty() {
-            println!("{:?}", stack);
             iterations += 1;
             if let Some(coord) = stack.pop() {
                 if let Some(cell_state) = self.state.get(&coord) {
@@ -129,49 +153,51 @@ impl WaveFunction {
                     // the choices in that neighbor.
                     // Specifically, if the neighbor has any choices that still might
                     // work, then it's still fine.
-                    // If so, remove that choice, then add the neighbor to the stack.
-                    helpers::get_neighbors(self.grid_dimensions, &coord)
-                        .iter()
-                        .for_each(|(neighbor, direction)| {
-                            let maybe_neighbor_state =
-                                self.state.get_mut(neighbor).filter(|cs| !cs.is_collapsed());
-                            if let Some(neighbor_state) = maybe_neighbor_state {
-                                let neighbor_choices = neighbor_state.get_choices();
+                    // Otherwise, remove that choice, then add the neighbor to the stack.
+                    let neighbors = helpers::get_neighbors(self.grid_dimensions, &coord);
+                    for (neighbor, direction) in &neighbors {
+                        let maybe_neighbor_state =
+                            self.state.get_mut(neighbor).filter(|cs| !cs.is_collapsed());
+                        if let Some(neighbor_state) = maybe_neighbor_state {
+                            let neighbor_choices = neighbor_state.get_choices();
 
-                                let mut add_neighbor = false;
-                                for neighbor_choice in &neighbor_choices {
-                                    let is_valid = choices.iter().any(|choice| {
-                                        self.adjacency_rules.valid_neighbors(
-                                            *choice,
-                                            *neighbor_choice,
-                                            direction,
-                                        )
-                                    });
+                            let mut add_neighbor = false;
+                            for neighbor_choice in &neighbor_choices {
+                                let is_valid = choices.iter().any(|choice| {
+                                    self.adjacency_rules.valid_neighbors(
+                                        *choice,
+                                        *neighbor_choice,
+                                        *direction,
+                                    )
+                                });
 
-                                    if !is_valid {
-                                        neighbor_state.remove_choice(neighbor_choice);
-                                        add_neighbor = true;
-                                    }
-                                }
-                                if add_neighbor {
-                                    stack.push(*neighbor);
+                                if !is_valid {
+                                    neighbor_state.remove_choice(neighbor_choice);
+                                    add_neighbor = true;
                                 }
                             }
-                        });
+                            if add_neighbor {
+                                if neighbor_state.get_choices().len() == 1 {
+                                    self.collapse(neighbor.clone())?;
+                                }
+                                stack.push(*neighbor);
+                            }
+                        }
+                    }
                 }
             }
         }
-        iterations
+        Ok(iterations)
     }
 
-    fn get_random_choice(&self, choices: &Vec<Id>) -> Id {
+    fn get_random_choice(&self, choices: &Vec<Id>) -> Result<Id> {
         let mut rng = rand::thread_rng();
         let weights = choices
             .iter()
             .flat_map(|id| self.model.frequency_hints.get(id))
             .collect::<Vec<&f64>>();
-        let dist = WeightedIndex::new(weights).unwrap();
-        choices[dist.sample(&mut rng)]
+        let dist = WeightedIndex::new(weights)?;
+        Ok(choices[dist.sample(&mut rng)])
     }
 
     fn get_lowest_entropy_coord(&self) -> Vector2 {
@@ -188,9 +214,9 @@ impl WaveFunction {
         *coord
     }
 
-    fn take_snapshot(&self, depth: usize) {
+    fn take_snapshot(&mut self) {
         let (width, height) = self.grid_dimensions;
-        let mut data = vec![vec![128; width * 3]; height];
+        let mut snapshot = image::Image::new(width as u32, height as u32);
 
         for y in 0..height {
             for x in 0..width {
@@ -207,12 +233,9 @@ impl WaveFunction {
                     .reduce(|l, r| l.blend(&r))
                     .unwrap();
 
-                data[y][x * 3] = color.0[0];
-                data[y][x * 3 + 1] = color.0[1];
-                data[y][x * 3 + 2] = color.0[2];
+                snapshot.set_color(pixel, color);
             }
         }
-
-        image::output_image(&depth.to_string(), data);
+        self.snapshots.push(snapshot);
     }
 }

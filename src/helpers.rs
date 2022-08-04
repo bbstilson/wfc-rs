@@ -1,14 +1,17 @@
-use crate::data::{coord_2d::Vector2, direction::Direction};
+use crate::data::{coord_2d::Vector2, direction};
 
-pub fn get_neighbors(dimensions: (usize, usize), coord: &Vector2) -> Vec<(Vector2, Direction)> {
+pub fn get_neighbors(
+    dimensions: (usize, usize),
+    coord: &Vector2,
+) -> Vec<(Vector2, direction::Direction)> {
     let (width, height) = dimensions;
     let x = coord.x;
     let y = coord.y;
     vec![
-        ((x, y - 1), Direction::Up),
-        ((x - 1, y), Direction::Left),
-        ((x + 1, y), Direction::Right),
-        ((x, y + 1), Direction::Down),
+        ((x, y - 1), direction::UP),
+        ((x, y + 1), direction::DOWN),
+        ((x - 1, y), direction::LEFT),
+        ((x + 1, y), direction::RIGHT),
     ]
     .iter()
     .filter(|((x, y), _)| x >= &0 && y >= &0 && x < &(width as i32) && y < &(height as i32))
@@ -18,7 +21,7 @@ pub fn get_neighbors(dimensions: (usize, usize), coord: &Vector2) -> Vec<(Vector
 
 #[cfg(test)]
 mod test {
-    use crate::{data::coord_2d::Vector2, data::direction::Direction};
+    use crate::data::{coord_2d::Vector2, direction};
 
     use super::get_neighbors;
 
@@ -31,70 +34,70 @@ mod test {
             (
                 Vector2 { x: 0, y: 0 },
                 vec![
-                    (Vector2 { x: 1, y: 0 }, Direction::Right),
-                    (Vector2 { x: 0, y: 1 }, Direction::Down),
+                    (Vector2 { x: 1, y: 0 }, direction::RIGHT),
+                    (Vector2 { x: 0, y: 1 }, direction::DOWN),
                 ],
             ),
             (
                 Vector2 { x: 1, y: 0 },
                 vec![
-                    (Vector2 { x: 0, y: 0 }, Direction::Left),
-                    (Vector2 { x: 2, y: 0 }, Direction::Right),
-                    (Vector2 { x: 1, y: 1 }, Direction::Down),
+                    (Vector2 { x: 0, y: 0 }, direction::LEFT),
+                    (Vector2 { x: 2, y: 0 }, direction::RIGHT),
+                    (Vector2 { x: 1, y: 1 }, direction::DOWN),
                 ],
             ),
             (
                 Vector2 { x: 2, y: 0 },
                 vec![
-                    (Vector2 { x: 1, y: 0 }, Direction::Left),
-                    (Vector2 { x: 2, y: 1 }, Direction::Down),
+                    (Vector2 { x: 1, y: 0 }, direction::LEFT),
+                    (Vector2 { x: 2, y: 1 }, direction::DOWN),
                 ],
             ),
             (
                 Vector2 { x: 0, y: 1 },
                 vec![
-                    (Vector2 { x: 0, y: 0 }, Direction::Up),
-                    (Vector2 { x: 1, y: 1 }, Direction::Right),
-                    (Vector2 { x: 0, y: 2 }, Direction::Down),
+                    (Vector2 { x: 0, y: 0 }, direction::UP),
+                    (Vector2 { x: 1, y: 1 }, direction::RIGHT),
+                    (Vector2 { x: 0, y: 2 }, direction::DOWN),
                 ],
             ),
             (
                 Vector2 { x: 1, y: 1 },
                 vec![
-                    (Vector2 { x: 1, y: 0 }, Direction::Up),
-                    (Vector2 { x: 0, y: 1 }, Direction::Left),
-                    (Vector2 { x: 2, y: 1 }, Direction::Right),
-                    (Vector2 { x: 1, y: 2 }, Direction::Down),
+                    (Vector2 { x: 1, y: 0 }, direction::UP),
+                    (Vector2 { x: 0, y: 1 }, direction::LEFT),
+                    (Vector2 { x: 2, y: 1 }, direction::RIGHT),
+                    (Vector2 { x: 1, y: 2 }, direction::DOWN),
                 ],
             ),
             (
                 Vector2 { x: 2, y: 1 },
                 vec![
-                    (Vector2 { x: 2, y: 0 }, Direction::Up),
-                    (Vector2 { x: 1, y: 1 }, Direction::Left),
-                    (Vector2 { x: 2, y: 2 }, Direction::Down),
+                    (Vector2 { x: 2, y: 0 }, direction::UP),
+                    (Vector2 { x: 1, y: 1 }, direction::LEFT),
+                    (Vector2 { x: 2, y: 2 }, direction::DOWN),
                 ],
             ),
             (
                 Vector2 { x: 0, y: 2 },
                 vec![
-                    (Vector2 { x: 0, y: 1 }, Direction::Up),
-                    (Vector2 { x: 1, y: 2 }, Direction::Right),
+                    (Vector2 { x: 0, y: 1 }, direction::UP),
+                    (Vector2 { x: 1, y: 2 }, direction::RIGHT),
                 ],
             ),
             (
                 Vector2 { x: 1, y: 2 },
                 vec![
-                    (Vector2 { x: 1, y: 1 }, Direction::Up),
-                    (Vector2 { x: 0, y: 2 }, Direction::Left),
-                    (Vector2 { x: 2, y: 2 }, Direction::Right),
+                    (Vector2 { x: 1, y: 1 }, direction::UP),
+                    (Vector2 { x: 0, y: 2 }, direction::LEFT),
+                    (Vector2 { x: 2, y: 2 }, direction::RIGHT),
                 ],
             ),
             (
                 Vector2 { x: 2, y: 2 },
                 vec![
-                    (Vector2 { x: 2, y: 1 }, Direction::Up),
-                    (Vector2 { x: 1, y: 2 }, Direction::Left),
+                    (Vector2 { x: 2, y: 1 }, direction::UP),
+                    (Vector2 { x: 1, y: 2 }, direction::LEFT),
                 ],
             ),
         ];
