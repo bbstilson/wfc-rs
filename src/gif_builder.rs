@@ -40,7 +40,7 @@ impl GifBuilder {
                 Ok(())
             }
             _ => Err(anyhow!(
-                "incorrect number of images. Must provide at least 2 images"
+                "Incorrect number of images. Must provide at least 2 images"
             )),
         }
     }

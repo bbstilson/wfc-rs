@@ -9,20 +9,17 @@ use crate::gif_builder::GifBuilder;
 use crate::unique_stack::UniqueStack;
 use crate::{adjacency_rules::AdjacencyRules, helpers, image::Image, model::Model};
 
-type State = HashMap<Vector2, CellState>;
-
 // Rendering a snapshot everytime a cell collapses is visually uninteresting (no one
 // likes to watch a 40 second gif). To save space and time, we only cache a state if
-// `SNAPSHOT_COUNTER % GIF_SIZE_FACTOR == 0` is true.
-// See: `should_take_snapshot`
+// `SNAPSHOT_COUNTER % GIF_SIZE_FACTOR == 0`. See: `WaveFunction::should_take_snapshot`.
 static SNAPSHOT_COUNTER: AtomicUsize = AtomicUsize::new(0);
 const GIF_SIZE_FACTOR: usize = 10;
 
 pub struct WaveFunction {
-    state: State,
     model: Model,
     adjacency_rules: AdjacencyRules,
     // wave data
+    state: HashMap<Vector2, CellState>,
     dimensions: (usize, usize),
     cells_to_collapse: usize,
     // gif related fields
@@ -37,11 +34,11 @@ impl WaveFunction {
         model: Model,
         make_gif: bool,
     ) -> WaveFunction {
-        let (w, h) = dimensions;
+        let (width, height) = dimensions;
         let mut state = HashMap::new();
         let choices = model.id_to_tile.keys().map(|id| *id).collect::<Vec<Id>>();
-        for y in 0..h {
-            for x in 0..w {
+        for y in 0..height {
+            for x in 0..width {
                 state.insert(
                     Vector2 {
                         x: x as i32,
@@ -61,7 +58,7 @@ impl WaveFunction {
             state,
             make_gif,
             snapshots: vec![],
-            cells_to_collapse: w * h,
+            cells_to_collapse: width * height,
         }
     }
 
@@ -98,12 +95,12 @@ impl WaveFunction {
         println!("Iterations completed: {}", iterations);
 
         if self.make_gif {
-            GifBuilder::make_gif(&self.snapshots)?;
+            // take final snapshot of state, then make the gif
+            self.take_snapshot();
+            GifBuilder::make_gif(&self.snapshots)
         } else {
-            self.state_to_image().save("output")?;
+            self.state_to_image().save("output")
         }
-
-        Ok(())
     }
 
     fn collapse(&mut self, to_collapse: Vector2) -> Result<()> {

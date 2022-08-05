@@ -20,6 +20,12 @@ cargo run --release -- ./input/flowers.png -o 80,40 -t 3,3 -m
 cargo run --release -- ./input/smog-city.png -o 80,40 -t 4,4 -m
 ```
 
+![animated village](./village.gif)
+
+```bash
+cargo run --release -- ./input/village.png -o 80,40 -t 3,3 -m
+```
+
 ## Running
 
 ```bash

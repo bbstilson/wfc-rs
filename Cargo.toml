@@ -7,11 +7,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0.59"
 clap = { version = "3.2.16", features = ["derive"] }
+gif = "0.11.4"
 png = "0.17.5"
 rand = "0.8.5"
-gif = "0.11.4"
-anyhow = "1.0.59"
 
 
 # [profile.release]
