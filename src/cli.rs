@@ -1,40 +1,48 @@
-use std;
 use std::str::FromStr;
+use std::{self, path::PathBuf};
 
 use anyhow::{anyhow, Ok, Result};
-use clap::Parser;
-
-use crate::data::parse_method::ParseMethod;
+use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 /// Run wfc-rs
 pub struct Args {
-    /// input image location
-    pub input: String,
+    /// Input location. If running in 'tiled set' mode, this is assumed to be a directory.
+    pub input: PathBuf,
 
-    /// output dimensions in pixels
+    /// Output dimensions. If running in 'tiled' mode, then this is the number of tiles.
+    /// If in 'overlap' mode, then it is in pixels.
     #[clap(short, long, value_parser = parse_tuple_arg)]
-    pub output_dimensions: (usize, usize),
+    pub output_dimensions: (u32, u32),
 
-    /// tile dimensions to parse from input image
-    #[clap(short, long, value_parser = parse_tuple_arg)]
-    pub tile_dimensions: (usize, usize),
+    #[clap(subcommand)]
+    pub mode: Mode,
 
     /// whether or not to make a gif (warning: very slow)
-    #[clap(short, long)]
+    #[clap(long)]
     pub make_gif: bool,
 
     /// whether or not create all variations (rotations and reflections) of tiles
     #[clap(short, long)]
     pub with_tile_variations: bool,
-
-    /// parse input as a tiled map
-    #[clap(long, arg_enum, default_value_t = ParseMethod::Overlap)]
-    pub parse_method: ParseMethod,
 }
 
-fn parse_tuple_arg(value: &str) -> Result<(usize, usize)> {
+#[derive(Subcommand)]
+pub enum Mode {
+    Overlap {
+        /// tile dimensions to parse from input image
+        #[clap(short, long, value_parser = parse_tuple_arg)]
+        tile_dimensions: (u32, u32),
+    },
+    Tile {
+        /// tile dimensions to parse from input image
+        #[clap(short, value_parser = parse_tuple_arg)]
+        tile_dimensions: (u32, u32),
+    },
+}
+
+fn parse_tuple_arg(value: &str) -> Result<(u32, u32)> {
     let parts = value
         .split(',')
         .map(|part| part.trim())
@@ -42,18 +50,18 @@ fn parse_tuple_arg(value: &str) -> Result<(usize, usize)> {
 
     if parts.len() == 2 {
         if let (std::result::Result::Ok(w), std::result::Result::Ok(h)) =
-            (usize::from_str(parts[0]), usize::from_str(parts[1]))
+            (u32::from_str(parts[0]), u32::from_str(parts[1]))
         {
             Ok((w, h))
         } else {
             Err(anyhow!(
-                "Could not parse value into tuple of (usize, usize): {}",
+                "Could not parse value into tuple of (u32, u32): {}",
                 value
             ))
         }
     } else {
         Err(anyhow!(
-            "Could not parse value into tuple of (usize, usize): {}",
+            "Could not parse value into tuple of (u32, u32): {}",
             value
         ))
     }

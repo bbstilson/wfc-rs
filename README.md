@@ -8,19 +8,19 @@ Helpful explanation in Rust: <https://www.gridbugs.org/wave-function-collapse/>
 
 ## Renderings
 
-![animated flowers](./flowers.gif)
+![animated flowers](./assets/flowers.gif)
 
 ```bash
 cargo run --release -- ./input/flowers.png -o 80,40 -t 3,3 -m
 ```
 
-![animated city](./city.gif)
+![animated city](./assets/city.gif)
 
 ```bash
 cargo run --release -- ./input/smog-city.png -o 80,40 -t 4,4 -m
 ```
 
-![animated village](./village.gif)
+![animated village](./assets/village.gif)
 
 ```bash
 cargo run --release -- ./input/village.png -o 80,40 -t 3,3 -m
@@ -66,7 +66,6 @@ OPTIONS:
 
 ## TODOs
 
-- tiled mode
 - reflections and rotations of tiles
 - weights in directions
 - global weights of tiles
@@ -74,3 +73,7 @@ OPTIONS:
 - detect ground tiles and do something with them
 - diagonal directions?
 - 3d models?
+
+## Attribution
+
+- [Mini World Sprites by Shade](https://merchant-shade.itch.io/16x16-mini-world-sprites)
