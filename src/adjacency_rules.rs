@@ -2,9 +2,8 @@ use crate::data::{direction, id::Id, tile::Tile};
 use crate::model::Model;
 
 //  Representation of the adjacency and direction between tile ids.
-#[derive(Debug)]
 pub struct AdjacencyRules {
-    rules: Vec<Vec<Vec<bool>>>,
+    pub rules: Vec<Vec<Vec<bool>>>,
 }
 
 impl AdjacencyRules {
@@ -16,8 +15,8 @@ impl AdjacencyRules {
         };
 
         let tiles: Vec<&Tile> = model.tile_to_id.keys().collect();
-        for a in tiles.clone() {
-            for b in tiles.clone() {
+        for a in &tiles {
+            for b in &tiles {
                 for direction in direction::ALL {
                     if a.overlaps(b, &direction, model.tile_dimensions) {
                         rules.allow(model.tile_to_id[&a], model.tile_to_id[&b], direction);
@@ -33,7 +32,7 @@ impl AdjacencyRules {
         self.rules[a][b][direction] = true;
     }
 
-    pub fn valid_neighbors(&self, me: Id, neighbor: Id, direction: direction::Direction) -> bool {
-        self.rules[me][neighbor][direction]
+    pub fn valid_neighbors(&self, a: Id, b: Id, direction: direction::Direction) -> bool {
+        self.rules[a][b][direction]
     }
 }

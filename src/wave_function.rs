@@ -4,46 +4,42 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::data::color::Color;
-use crate::data::{cell_state::CellState, coord_2d::Vector2, id::Id, tile::Tile};
+use crate::data::{cell_state::CellState, coord_2d::Vector2, id::Id};
 use crate::gif_builder::GifBuilder;
 use crate::unique_stack::UniqueStack;
-use crate::{adjacency_rules::AdjacencyRules, helpers, image, image::Image, model::Model};
-
-type State = HashMap<Vector2, CellState>;
-type CollapsedState = HashMap<Vector2, Id>;
+use crate::{adjacency_rules::AdjacencyRules, helpers, image::Image, model::Model};
 
 // Rendering a snapshot everytime a cell collapses is visually uninteresting (no one
 // likes to watch a 40 second gif). To save space and time, we only cache a state if
-// `SNAPSHOT_COUNTER % GIF_SIZE_FACTOR == 0` is true.
-// See: `should_take_snapshot`
+// `SNAPSHOT_COUNTER % GIF_SIZE_FACTOR == 0`. See: `WaveFunction::should_take_snapshot`.
 static SNAPSHOT_COUNTER: AtomicUsize = AtomicUsize::new(0);
 const GIF_SIZE_FACTOR: usize = 10;
 
 pub struct WaveFunction {
-    state: State,
     model: Model,
     adjacency_rules: AdjacencyRules,
-    grid_dimensions: (usize, usize),
+    // wave data
+    state: HashMap<Vector2, CellState>,
+    dimensions: (usize, usize),
     cells_to_collapse: usize,
+    // gif related fields
     make_gif: bool,
-    id_to_tile: HashMap<Id, Tile>,
     snapshots: Vec<Image>,
 }
 
 impl WaveFunction {
     pub fn new(
-        output_dimensions: (usize, usize),
+        dimensions: (usize, usize),
         adjacency_rules: AdjacencyRules,
         model: Model,
         make_gif: bool,
-        id_to_tile: HashMap<Id, Tile>,
     ) -> WaveFunction {
-        let (output_w, output_h) = output_dimensions;
-        let mut init = HashMap::new();
+        let (width, height) = dimensions;
+        let mut state = HashMap::new();
         let choices = model.id_to_tile.keys().map(|id| *id).collect::<Vec<Id>>();
-        for y in 0..output_h {
-            for x in 0..output_w {
-                init.insert(
+        for y in 0..height {
+            for x in 0..width {
+                state.insert(
                     Vector2 {
                         x: x as i32,
                         y: y as i32,
@@ -58,12 +54,11 @@ impl WaveFunction {
         WaveFunction {
             model,
             adjacency_rules,
+            dimensions,
+            state,
             make_gif,
-            id_to_tile,
             snapshots: vec![],
-            grid_dimensions: output_dimensions,
-            state: init,
-            cells_to_collapse: output_w * output_h,
+            cells_to_collapse: width * height,
         }
     }
 
@@ -72,7 +67,7 @@ impl WaveFunction {
     }
 
     fn print_progress(&self) {
-        let (width, height) = self.grid_dimensions;
+        let (width, height) = self.dimensions;
         let area = width * height;
         let ten_percent = area / 10;
 
@@ -84,12 +79,13 @@ impl WaveFunction {
         }
     }
 
-    pub fn run(&mut self) -> Result<CollapsedState> {
+    pub fn run(&mut self) -> Result<()> {
         self.iterate()
     }
 
-    fn iterate(&mut self) -> Result<CollapsedState> {
+    fn iterate(&mut self) -> Result<()> {
         let mut iterations = 0;
+
         while !self.is_collapsed() {
             let to_collapse = self.get_lowest_entropy_coord();
             self.collapse(to_collapse)?;
@@ -99,18 +95,12 @@ impl WaveFunction {
         println!("Iterations completed: {}", iterations);
 
         if self.make_gif {
-            GifBuilder::make_gif(&self.snapshots)?;
+            // take final snapshot of state, then make the gif
+            self.take_snapshot();
+            GifBuilder::make_gif(&self.snapshots)
+        } else {
+            self.state_to_image().save("output")
         }
-
-        let final_state = self
-            .state
-            .iter()
-            .fold(HashMap::new(), |mut acc, (coord, cell_state)| {
-                acc.insert(*coord, cell_state.state.unwrap());
-                acc
-            });
-
-        Ok(final_state)
     }
 
     fn collapse(&mut self, to_collapse: Vector2) -> Result<()> {
@@ -154,7 +144,7 @@ impl WaveFunction {
                     // Specifically, if the neighbor has any choices that still might
                     // work, then it's still fine.
                     // Otherwise, remove that choice, then add the neighbor to the stack.
-                    let neighbors = helpers::get_neighbors(self.grid_dimensions, &coord);
+                    let neighbors = helpers::get_neighbors(self.dimensions, &coord);
                     for (neighbor, direction) in &neighbors {
                         let maybe_neighbor_state =
                             self.state.get_mut(neighbor).filter(|cs| !cs.is_collapsed());
@@ -214,9 +204,9 @@ impl WaveFunction {
         *coord
     }
 
-    fn take_snapshot(&mut self) {
-        let (width, height) = self.grid_dimensions;
-        let mut snapshot = image::Image::new(width as u32, height as u32);
+    fn state_to_image(&self) -> Image {
+        let (width, height) = self.dimensions;
+        let mut img = Image::new(width as u32, height as u32);
 
         for y in 0..height {
             for x in 0..width {
@@ -228,14 +218,19 @@ impl WaveFunction {
                 let color = state
                     .get_choices()
                     .iter()
-                    .map(|id| &self.id_to_tile[id])
-                    .map(|t| t.pixels[0][0].clone())
-                    .reduce(|l, r| l.blend(&r))
+                    .map(|id| &self.model.id_to_tile[id])
+                    .map(|t| t.pixels[0][0].clone()) // take the top left pixel from the tile
+                    .reduce(|l, r| l.blend(&r)) // blend all the pixels together
                     .unwrap();
 
-                snapshot.set_color(pixel, color);
+                img.set_color(pixel, color);
             }
         }
-        self.snapshots.push(snapshot);
+
+        img
+    }
+
+    fn take_snapshot(&mut self) {
+        self.snapshots.push(self.state_to_image());
     }
 }
