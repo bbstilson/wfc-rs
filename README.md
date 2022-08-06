@@ -14,6 +14,12 @@ Explanation for overlap model: <https://www.gridbugs.org/wave-function-collapse/
 cargo run --release -- ./input/flowers.png --make-gif -o 80,40 overlap -t 3,3
 ```
 
+![animated rotated/reflected flowers](./assets/rotated-reflected-flowers.gif)
+
+```bash
+cargo run --release -- ./input/flowers.png -o 80,40 --make-gif --with-tile-variations overlap -t 3,3
+```
+
 ![animated city](./assets/city.gif)
 
 ```bash
@@ -75,7 +81,7 @@ SUBCOMMANDS:
 - reflections and rotations of tiles
 - directional weights
 - shannon entropy of cells
-- 3d models
+- voxels
 
 ## Attribution
 

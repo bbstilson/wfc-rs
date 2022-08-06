@@ -29,22 +29,21 @@ impl Tile {
 
     pub fn overlaps(&self, other: &Tile, dir: Direction, mode: Mode) -> bool {
         match mode {
-            Mode::Tile => self.compare_tiled(dir, other),
+            Mode::Tile => self.compare_tile(dir, other),
             Mode::Overlap => self.compare_overlap(dir, other),
         }
     }
 
     pub fn permute(&self) -> Vec<Tile> {
-        // let mut permutations = vec![];
-        // permutations.push(rotate_90(&pixels));
-        // permutations.push(rotate_180(&buf))
-        // permutations.push(rotate_270(&buf))
-        // permutations.push(flip_horizontal(&buf))
-        // permutations.push(flip_vertical(&buf))
-        // permutations.push(flip_vertical(&rotate_90(&buf)))
-        // permutations.push(flip_horizontal(&rotate_90(&buf)))
-        // permutations
-        vec![]
+        let mut permutations = vec![self.clone()];
+        permutations.push(rotate_90(self.clone()));
+        permutations.push(rotate_180(self.clone()));
+        permutations.push(rotate_270(self.clone()));
+        permutations.push(flip_horizontal(self.clone()));
+        permutations.push(flip_vertical(self.clone()));
+        permutations.push(flip_vertical(rotate_90(self.clone())));
+        permutations.push(flip_horizontal(rotate_90(self.clone())));
+        permutations
     }
 
     fn get_idx(&self, x: u32, y: u32) -> usize {
@@ -73,7 +72,7 @@ impl Tile {
         true
     }
 
-    fn compare_tiled(&self, dir: Direction, other: &Tile) -> bool {
+    fn compare_tile(&self, dir: Direction, other: &Tile) -> bool {
         match dir {
             // compare top-edge of 'a' to bottom-edge of 'b'
             Direction::UP => {
@@ -136,76 +135,225 @@ impl Tile {
     }
 }
 
-// papa bless: https://stackoverflow.com/a/2800033/6147439
-// fn rotate_90(pixels: &Vec<Vec<RGB>>) -> Tile {
-//     let m = pixels.len();
-//     let n = pixels[0].len();
-//     let mut out = vec![BLACK; n]; m;
-//     for r in 0..m {
-//         for c in 0..n {
-//             out[c][m - 1 - r] = pixels[r][c];
-//         }
-//     }
-//     Tile { pixels: out }
-// }
+// papa bless: https://stackoverflow.com/a/8664879/6147439
+fn rotate_90(tile: Tile) -> Tile {
+    let chunked = tile
+        .pixels
+        .chunks(tile.width as usize)
+        .map(|c| c.to_vec())
+        .collect::<Vec<Vec<RGB>>>();
 
-// fn rotate_180(pixels: &Vec<Vec<RGB>>) -> Tile {
-//     let rows = pixels.len();
-//     let cols = pixels[0].len();
-//     let mut out = vec![BLACK; cols]; rows;
+    let transposed = transpose(tile.width as usize, chunked);
+    let new_pixels = transposed
+        .iter()
+        .flat_map(|row: &Vec<RGB>| {
+            row.iter()
+                .rev()
+                .map(|c| c.clone())
+                .collect::<Vec<RGB>>()
+                .clone()
+        })
+        .collect();
 
-//     // for (int i = N - 1; i >= 0; i--) {
-//     //     for (int j = N - 1; j >= 0; j--)
-//     //         printf("%d ", mat[i][j]);
+    Tile {
+        width: tile.width,
+        height: tile.height,
+        pixels: new_pixels,
+    }
+}
 
-//     for row in (0..rows).rev() {
-//         for col in (0..cols).rev() {
-//             out[rows - row][cols - col] = pixels[row][col];
-//         }
-//     }
-//     Tile { pixels: out }
-// }
+fn rotate_180(tile: Tile) -> Tile {
+    let new_pixels = tile
+        .pixels
+        .chunks(tile.width as usize)
+        .map(|row| row.iter().rev().map(|c| c.clone()))
+        .rev()
+        .flatten()
+        .collect::<Vec<RGB>>();
+
+    Tile {
+        width: tile.width,
+        height: tile.height,
+        pixels: new_pixels,
+    }
+}
+
+fn rotate_270(tile: Tile) -> Tile {
+    let chunked = tile
+        .pixels
+        .chunks(tile.width as usize)
+        .map(|c| c.to_vec())
+        .collect::<Vec<Vec<RGB>>>();
+
+    let transposed = transpose(tile.width as usize, chunked);
+    let new_pixels = transposed
+        .iter()
+        .rev()
+        .flat_map(|row: &Vec<RGB>| row.iter().map(|c| c.clone()).collect::<Vec<RGB>>().clone())
+        .collect();
+
+    Tile {
+        width: tile.width,
+        height: tile.height,
+        pixels: new_pixels,
+    }
+}
+
+fn flip_horizontal(tile: Tile) -> Tile {
+    let new_pixels = tile
+        .pixels
+        .chunks(tile.width as usize)
+        .flat_map(|row| row.iter().rev().map(|c| c.clone()))
+        .collect();
+
+    Tile {
+        width: tile.width,
+        height: tile.height,
+        pixels: new_pixels,
+    }
+}
+fn flip_vertical(tile: Tile) -> Tile {
+    let new_pixels = tile
+        .pixels
+        .chunks(tile.width as usize)
+        .rev()
+        .flat_map(|row| row.iter().map(|c| c.clone()))
+        .collect();
+
+    Tile {
+        width: tile.width,
+        height: tile.height,
+        pixels: new_pixels,
+    }
+}
+
+fn transpose(width: usize, xs: Vec<Vec<RGB>>) -> Vec<Vec<RGB>> {
+    let mut rotated = vec![vec![[0, 0, 0]; xs[0].len()]; xs.len()];
+    for i in 0..(width as usize) {
+        for j in 0..(width as usize) {
+            rotated[i][j] = xs[j][i];
+        }
+    }
+    rotated
+}
 
 #[cfg(test)]
 mod tests {
-    use crate::data::{color::BLACK, direction, tile::*};
+    use crate::data::{color::BLACK, tile::*};
 
     const WHITE: RGB = [255, 255, 255];
 
     use super::Tile;
 
-    // #[test]
-    // fn test_rotate_180() {
-    //     let pixels = vec![
-    //         vec![[0, 0, 0], [1, 1, 1], [2, 2, 2]],
-    //         vec![[3, 3, 3], [4, 4, 4], [5, 5, 5]],
-    //         vec![[6, 6, 6], [7, 7, 7], [8, 8, 8]],
-    //     ];
-    //     let expected = vec![
-    //         vec![[8, 8, 8], [7, 7, 7], [6, 6, 6]],
-    //         vec![[5, 5, 5], [4, 4, 4], [3, 3, 3]],
-    //         vec![[2, 2, 2], [1, 1, 1], [0, 0, 0]],
-    //     ];
-    //     assert_eq!(rotate_180(&pixels).pixels, expected);
-    // }
+    #[test]
+    fn test_rotate_270() {
+        let pixels = vec![
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+            [3, 3, 3],
+            [4, 4, 4],
+            [5, 5, 5],
+            [6, 6, 6],
+            [7, 7, 7],
+            [8, 8, 8],
+        ];
 
-    // #[test]
-    // fn test_rotate_90() {
-    //     let pixels = vec![
-    //         vec![[0, 0, 0], [1, 1, 1], [2, 2, 2]],
-    //         vec![[3, 3, 3], [4, 4, 4], [5, 5, 5]],
-    //         vec![[6, 6, 6], [7, 7, 7], [8, 8, 8]],
-    //     ];
-    //     let expected = vec![
-    //         vec![[6, 6, 6], [3, 3, 3], [0, 0, 0]],
-    //         vec![[7, 7, 7], [4, 4, 4], [1, 1, 1]],
-    //         vec![[8, 8, 8], [5, 5, 5], [2, 2, 2]],
-    //     ];
-    //     assert_eq!(rotate_90(&pixels).pixels, expected);
-    // }
+        let expected = vec![
+            [2, 2, 2],
+            [5, 5, 5],
+            [8, 8, 8],
+            [1, 1, 1],
+            [4, 4, 4],
+            [7, 7, 7],
+            [0, 0, 0],
+            [3, 3, 3],
+            [6, 6, 6],
+        ];
+
+        assert_eq!(
+            rotate_270(Tile {
+                width: 3,
+                height: 3,
+                pixels
+            })
+            .pixels,
+            expected
+        );
+    }
 
     #[test]
-    fn test_compare_tiled() {
+    fn test_rotate_180() {
+        let pixels = vec![
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+            [3, 3, 3],
+            [4, 4, 4],
+            [5, 5, 5],
+            [6, 6, 6],
+            [7, 7, 7],
+            [8, 8, 8],
+        ];
+        let expected = vec![
+            [8, 8, 8],
+            [7, 7, 7],
+            [6, 6, 6],
+            [5, 5, 5],
+            [4, 4, 4],
+            [3, 3, 3],
+            [2, 2, 2],
+            [1, 1, 1],
+            [0, 0, 0],
+        ];
+        assert_eq!(
+            rotate_180(Tile {
+                width: 3,
+                height: 3,
+                pixels
+            })
+            .pixels,
+            expected
+        );
+    }
+
+    #[test]
+    fn test_rotate_90() {
+        let pixels = vec![
+            [0, 0, 0],
+            [1, 1, 1],
+            [2, 2, 2],
+            [3, 3, 3],
+            [4, 4, 4],
+            [5, 5, 5],
+            [6, 6, 6],
+            [7, 7, 7],
+            [8, 8, 8],
+        ];
+        let expected = vec![
+            [6, 6, 6],
+            [3, 3, 3],
+            [0, 0, 0],
+            [7, 7, 7],
+            [4, 4, 4],
+            [1, 1, 1],
+            [8, 8, 8],
+            [5, 5, 5],
+            [2, 2, 2],
+        ];
+        assert_eq!(
+            rotate_90(Tile {
+                width: 3,
+                height: 3,
+                pixels
+            })
+            .pixels,
+            expected
+        );
+    }
+
+    #[test]
+    fn test_compare_tile() {
         let a = Tile {
             width: 3,
             height: 3,
