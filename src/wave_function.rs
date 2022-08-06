@@ -141,10 +141,9 @@ impl WaveFunction {
                     let choices = cell_state.get_choices();
 
                     // For each neighbor, check if the cell we just collapsed affects
-                    // the choices in that neighbor.
-                    // Specifically, if the neighbor has any choices that still might
-                    // work, then it's still fine.
-                    // Otherwise, remove that choice, then add the neighbor to the stack.
+                    // the choices in that neighbor. Specifically, if the neighbor has
+                    // any choices that still might work, then it's still fine.
+                    // Otherwise, remove that choice and add the neighbor to the stack.
                     let neighbors = helpers::get_neighbors(self.dimensions, &coord);
                     for (neighbor, direction) in &neighbors {
                         let maybe_neighbor_state =

@@ -2,28 +2,34 @@
 
 Original Algorithm: <https://github.com/mxgmn/WaveFunctionCollapse>
 
-Helpful basic explanation for tiled model: <https://robertheaton.com/2018/12/17/wavefunction-collapse-algorithm/>
+Explanation for tiled model: <https://robertheaton.com/2018/12/17/wavefunction-collapse-algorithm/>
 
-Helpful explanation in Rust: <https://www.gridbugs.org/wave-function-collapse/>
+Explanation for overlap model: <https://www.gridbugs.org/wave-function-collapse/>
 
 ## Renderings
 
 ![animated flowers](./assets/flowers.gif)
 
 ```bash
-cargo run --release -- ./input/flowers.png -o 80,40 -t 3,3 -m
+cargo run --release -- ./input/flowers.png --make-gif -o 80,40 overlap -t 3,3
 ```
 
 ![animated city](./assets/city.gif)
 
 ```bash
-cargo run --release -- ./input/smog-city.png -o 80,40 -t 4,4 -m
+cargo run --release -- ./input/smog-city.png --make-gif -o 80,40 overlap -t 4,4
 ```
 
 ![animated village](./assets/village.gif)
 
 ```bash
-cargo run --release -- ./input/village.png -o 80,40 -t 3,3 -m
+cargo run --release -- ./input/village.png --make-gif -o 80,40 overlap -t 3,3
+```
+
+![animated tile town](./assets/mini-town.gif)
+
+```bash
+cargo run --release -- ./input/mini-world-meadows.png --make-gif -o 20,20 tile -t 16,16
 ```
 
 ## Running
@@ -36,43 +42,40 @@ Brandon Stilson
 Run wfc-rs
 
 USAGE:
-    wfc-rs [OPTIONS] --output-dimensions <OUTPUT_DIMENSIONS> --tile-dimensions <TILE_DIMENSIONS> <INPUT>
+    wfc-rs [OPTIONS] --output-dimensions <OUTPUT_DIMENSIONS> <INPUT> <SUBCOMMAND>
 
 ARGS:
-    <INPUT>    input image location
+    <INPUT>    Input location. If running in 'tiled set' mode, this is assumed to be a directory
 
 OPTIONS:
     -h, --help
             Print help information
 
-    -o, --output-dimensions <OUTPUT_DIMENSIONS>
-            output dimensions in pixels
-
-        --parse-method <PARSE_METHOD>
-            parse input as a tiled map [default: overlap] [possible values: overlap, tiled]
-
-    -m, --make-gif
+        --make-gif
             whether or not to make a gif (warning: very slow)
 
-    -t, --tile-dimensions <TILE_DIMENSIONS>
-            tile dimensions to parse from input image
+    -o, --output-dimensions <OUTPUT_DIMENSIONS>
+            Output dimensions. If running in 'tiled' mode, then this is the tiles. If in
+            'overlap' mode, then it is in pixels
 
     -V, --version
             Print version information
 
     -w, --with-tile-variations
             whether or not create all variations (rotations and reflections) of tiles
+
+SUBCOMMANDS:
+    help       Print this message or the help of the given subcommand(s)
+    overlap
+    tile
 ```
 
 ## TODOs
 
 - reflections and rotations of tiles
-- weights in directions
-- global weights of tiles
+- directional weights
 - shannon entropy of cells
-- detect ground tiles and do something with them
-- diagonal directions?
-- 3d models?
+- 3d models
 
 ## Attribution
 
