@@ -18,9 +18,18 @@ mod wave_function;
 fn main() -> Result<()> {
     let args: cli::Args = cli::Args::parse();
 
-    let input = image::Image::from_png(&args.input);
-    let model = Model::new(args.tile_dimensions, args.with_tile_variations, &input);
-    let adjacency_rules = AdjacencyRules::from_model(&model);
+    let (model, adjacency_rules) = match args.mode {
+        cli::Mode::Overlap { tile_dimensions } => {
+            let model = Model::overlap(args.input, tile_dimensions, args.with_tile_variations)?;
+            let adjacency_rules = AdjacencyRules::from_overlap_model(&model);
+            (model, adjacency_rules)
+        }
+        cli::Mode::Tile { tile_dimensions } => {
+            let model = Model::tiled(args.input, tile_dimensions, args.with_tile_variations)?;
+            let adjacency_rules = AdjacencyRules::from_tile_model(&model);
+            (model, adjacency_rules)
+        }
+    };
 
     println!("Unique tiles found: {}", model.id_to_tile.keys().len());
     println!(

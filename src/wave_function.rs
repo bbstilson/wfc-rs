@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::data::color::Color;
-use crate::data::{cell_state::CellState, coord_2d::Vector2, id::Id};
+use crate::data::mode::Mode;
+use crate::data::{cell_state::CellState, id::Id, vector2::Vector2};
 use crate::gif_builder::GifBuilder;
 use crate::unique_stack::UniqueStack;
 use crate::{adjacency_rules::AdjacencyRules, helpers, image::Image, model::Model};
@@ -20,8 +21,8 @@ pub struct WaveFunction {
     adjacency_rules: AdjacencyRules,
     // wave data
     state: HashMap<Vector2, CellState>,
-    dimensions: (usize, usize),
-    cells_to_collapse: usize,
+    dimensions: (u32, u32),
+    cells_to_collapse: u32,
     // gif related fields
     make_gif: bool,
     snapshots: Vec<Image>,
@@ -29,7 +30,7 @@ pub struct WaveFunction {
 
 impl WaveFunction {
     pub fn new(
-        dimensions: (usize, usize),
+        dimensions: (u32, u32),
         adjacency_rules: AdjacencyRules,
         model: Model,
         make_gif: bool,
@@ -205,8 +206,15 @@ impl WaveFunction {
     }
 
     fn state_to_image(&self) -> Image {
+        match self.model.mode {
+            Mode::Overlap => self.overlap_state_to_image(),
+            Mode::Tile => self.tiled_state_to_image(),
+        }
+    }
+
+    fn overlap_state_to_image(&self) -> Image {
         let (width, height) = self.dimensions;
-        let mut img = Image::new(width as u32, height as u32);
+        let mut img = Image::new(width, height);
 
         for y in 0..height {
             for x in 0..width {
@@ -219,7 +227,7 @@ impl WaveFunction {
                     .get_choices()
                     .iter()
                     .map(|id| &self.model.id_to_tile[id])
-                    .map(|t| t.pixels[0][0].clone()) // take the top left pixel from the tile
+                    .map(|t| t.pixels[0].clone()) // take the top left pixel from the tile
                     .reduce(|l, r| l.blend(&r)) // blend all the pixels together
                     .unwrap();
 
@@ -227,6 +235,39 @@ impl WaveFunction {
             }
         }
 
+        img
+    }
+
+    fn tiled_state_to_image(&self) -> Image {
+        let (width, height) = self.dimensions;
+        let (tile_width, tile_height) = self.model.tile_dimensions;
+        let mut img = Image::new(width * tile_width, height * tile_height);
+
+        for y in 0..height {
+            for x in 0..width {
+                let coord = Vector2 {
+                    x: x as i32,
+                    y: y as i32,
+                };
+                let tile = &self.state[&coord]
+                    .get_choices()
+                    .iter()
+                    .map(|id| &self.model.id_to_tile[id])
+                    .map(|t| t.clone())
+                    .reduce(|l, r| l.blend(r))
+                    .unwrap();
+
+                for t_y in 0..tile_height {
+                    for t_x in 0..tile_width {
+                        let pixel = Vector2 {
+                            x: (x * tile_width + t_x) as i32,
+                            y: (y * tile_height + t_y) as i32,
+                        };
+                        img.set_color(pixel, tile.at(t_x, t_y));
+                    }
+                }
+            }
+        }
         img
     }
 

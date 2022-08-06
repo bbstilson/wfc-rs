@@ -1,7 +1,7 @@
 pub mod cell_state;
 pub mod color;
-pub mod coord_2d;
 pub mod direction;
 pub mod id;
-pub mod parse_method;
+pub mod mode;
 pub mod tile;
+pub mod vector2;

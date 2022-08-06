@@ -1,13 +1,13 @@
-use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
+use std::{fs::File, path::PathBuf};
 
 use anyhow::{Ok, Result};
 use png::OutputInfo;
 
 use crate::data::{
     color::{self, RGB},
-    coord_2d::Vector2,
+    vector2::Vector2,
 };
 
 pub struct Image {
@@ -39,8 +39,8 @@ impl Image {
         ((at.y * self.width as i32) + at.x) as usize
     }
 
-    pub fn from_png(path: &str) -> Image {
-        let (info, buf) = read_image(path);
+    pub fn from_png(path: PathBuf) -> Result<Image> {
+        let (info, buf) = read_image(path)?;
         let bytes_per_color = match info.color_type {
             png::ColorType::Rgb => 3,
             png::ColorType::Rgba => 4,
@@ -62,11 +62,11 @@ impl Image {
             }
         }
 
-        Image {
+        Ok(Image {
             pixels,
             width,
             height,
-        }
+        })
     }
 
     pub fn save(&self, path: &str) -> Result<()> {
@@ -86,14 +86,14 @@ impl Image {
     }
 }
 
-fn read_image(path: &str) -> (OutputInfo, Vec<u8>) {
-    let decoder = png::Decoder::new(File::open(path).unwrap());
-    let mut reader = decoder.read_info().unwrap();
+fn read_image(path: PathBuf) -> Result<(OutputInfo, Vec<u8>)> {
+    let decoder = png::Decoder::new(File::open(path)?);
+    let mut reader = decoder.read_info()?;
     // Allocate the output buffer.
     let mut buf = vec![0; reader.output_buffer_size()];
     // Read the next frame. An APNG might contain multiple frames.
-    let info = reader.next_frame(&mut buf).unwrap();
-    (info, buf)
+    let info = reader.next_frame(&mut buf)?;
+    Ok((info, buf))
 }
 
 fn get_position(pos_x: u32, pos_y: u32, width: u32, bytes_per_color: u32) -> usize {
