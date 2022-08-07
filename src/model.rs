@@ -7,7 +7,7 @@ use crate::{
     image::Image,
 };
 
-// Model hold all data relevant to constructing and resolving the wave.
+// Model holds all data relevant to constructing and resolving the wave.
 #[derive(Clone)]
 pub struct Model {
     pub mode: Mode,

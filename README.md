@@ -78,7 +78,6 @@ SUBCOMMANDS:
 
 ## TODOs
 
-- reflections and rotations of tiles
 - directional weights
 - shannon entropy of cells
 - voxels
